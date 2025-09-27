@@ -63,6 +63,12 @@ const defaultHtml = `<!DOCTYPE html>
 const HtmlFramePage = () => {
   const [htmlSource, setHtmlSource] = useState(defaultHtml);
   const [compiledHtml, setCompiledHtml] = useState(defaultHtml);
+  const [prompt, setPrompt] = useState('Paint a cosmic Soultrace story set above a neon-lit city.');
+  const [paletteInput, setPaletteInput] = useState('#7E5AFF, #57D0FF, #FFA040');
+  const [aspectRatio, setAspectRatio] = useState('16:9');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [agentError, setAgentError] = useState<string | null>(null);
+  const [agentMeta, setAgentMeta] = useState<{model?: string; usedOpenAI?: boolean; error?: string} | null>(null);
 
   const handleCompile = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -75,7 +81,51 @@ const HtmlFramePage = () => {
   const handleReset = useCallback(() => {
     setHtmlSource(defaultHtml);
     setCompiledHtml(defaultHtml);
+    setAgentMeta(null);
+    setAgentError(null);
   }, []);
+
+  const handleGenerate = useCallback(async () => {
+    const palette = paletteInput
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    setIsGenerating(true);
+    setAgentError(null);
+
+    try {
+      const response = await fetch('/api/paint', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          palette,
+          aspectRatio,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}));
+        throw new Error(errorPayload?.error ?? 'Agent request failed');
+      }
+
+      const data = await response.json();
+      if (!data?.html) {
+        throw new Error('Agent returned no HTML');
+      }
+
+      setHtmlSource(data.html);
+      setCompiledHtml(data.html);
+      setAgentMeta(data.meta ?? null);
+    } catch (error) {
+      setAgentError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [aspectRatio, paletteInput, prompt]);
 
   const stats = useMemo(() => {
     const lineCount = htmlSource.split('\n').length;
@@ -112,7 +162,67 @@ const HtmlFramePage = () => {
             />
           </div>
 
-          <aside className="space-y-6 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-lg shadow-black/20 backdrop-blur">
+          <aside className="space-y-8 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-lg shadow-black/20 backdrop-blur">
+            <section className="space-y-4">
+              <h2 className="text-lg font-medium uppercase tracking-[0.4em] text-cyan-100/80">
+                Painting Agent Controls
+              </h2>
+              <label className="block text-xs uppercase tracking-[0.35em] text-cyan-100/80">
+                Prompt
+              </label>
+              <textarea
+                className="h-28 w-full resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 font-sans text-sm leading-relaxed text-teal-100/90 shadow-inner shadow-black/30 focus:border-cyan-300/60 focus:outline-none focus:ring-2 focus:ring-cyan-300/50"
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+              />
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-xs uppercase tracking-[0.35em] text-cyan-100/80">
+                  Palette (comma separated)
+                  <input
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-2 font-mono text-xs uppercase tracking-[0.2em] text-teal-100/90 shadow-inner shadow-black/30 focus:border-cyan-300/60 focus:outline-none focus:ring-2 focus:ring-cyan-300/50"
+                    value={paletteInput}
+                    onChange={(event) => setPaletteInput(event.target.value)}
+                  />
+                </label>
+
+                <label className="space-y-2 text-xs uppercase tracking-[0.35em] text-cyan-100/80">
+                  Aspect Ratio
+                  <select
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-xs uppercase tracking-[0.25em] text-teal-100/90 shadow-inner shadow-black/30 focus:border-cyan-300/60 focus:outline-none focus:ring-2 focus:ring-cyan-300/50"
+                    value={aspectRatio}
+                    onChange={(event) => setAspectRatio(event.target.value)}
+                  >
+                    <option value="16:9">16 : 9</option>
+                    <option value="1:1">1 : 1</option>
+                    <option value="9:16">9 : 16</option>
+                    <option value="4:3">4 : 3</option>
+                  </select>
+                </label>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                className="rounded-full bg-emerald-400/90 px-5 py-2 uppercase tracking-[0.3em] text-xs text-slate-900 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isGenerating ? 'Generating…' : 'Generate with Agent'}
+              </button>
+
+              {agentError ? (
+                <p className="rounded-2xl border border-red-400/40 bg-red-500/10 px-4 py-2 text-xs text-red-200">
+                  {agentError}
+                </p>
+              ) : null}
+
+              {agentMeta ? (
+                <p className="text-xs text-slate-200/70">
+                  Served by {agentMeta.model ?? 'agent'} • {agentMeta.usedOpenAI ? 'OpenAI response' : 'Fallback generation'}
+                </p>
+              ) : null}
+            </section>
+
             <form className="space-y-4" onSubmit={handleCompile}>
               <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-teal-100/80">
                 <span>
