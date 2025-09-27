@@ -7,24 +7,23 @@
 3. **Hexagram analysis**:
    - Based on I Ching data (`lib/iching.ts`)
    - Map direction + element + emotional tone
-4. **City matching**:
-   - Based on direction (后天八卦) + 5 elements
-   - American city database (categorized by 五行/energy/climate)
-5. **Life path generation**:
+4. **Life path generation**:
    - Claude/GPT-4 analyzes yao progression (初爻 → 上爻) → emotion + story
-6. **Poetry generation**:
+5. **Poetry generation**:
    - (poem of Life)
-7. **Image generation / scraping**:
+6. **Image generation / scraping**:
    - Based on each line's symbolism and user's cities
-8. **Video generation**:
+7. **Video generation**:
    - Combine poem + image + music into a dynamic visual using **Remotion**
-9. **Display & export**:
+8. **Display & export**:
    - Preview the story
    - Download / share
 
 ---
 
-## 🎯 API Routes (under `/api/`)
+## 🎯 API
+
+Routes (under `/api/`)
 
 | Route                       | Description                                                             |
 | --------------------------- | ----------------------------------------------------------------------- |
@@ -66,7 +65,6 @@
 | ------------ | ---------------- | ------------------------------------- |
 | 卦象分析     | GPT-4 / Claude   | 阴阳象征 + 爻动变化 + 方向解读        |
 | 生命路径叙述 | Claude 3         | 把六爻变迁串成一段人生故事            |
-| 城市匹配     | GPT-4            | 结合方向、五行与用户倾向，推荐城市    |
 | 诗歌生成     | GPT-4 / Claude   | 《生命之歌》+《城市之歌》带情绪节奏感 |
 | 图像提示生成 | GPT-4            | 用意象生成图像 prompt 或搜索关键词    |
 | 语音合成     | OpenAI TTS       | 合成诗歌的朗读声音                    |
