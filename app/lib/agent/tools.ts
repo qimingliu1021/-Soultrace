@@ -283,11 +283,14 @@ RELATED HEXAGRAMS:
 
 USER'S SITUATION:
 - Location: ${userInput.city}
+- Previous Cities: ${Array.isArray(userInput.previousCities) && userInput.previousCities.length > 0 ? userInput.previousCities.join(', ') : 'N/A'}
 - Personal Experience: ${userInput.experience}
 - Current Difficulty: ${userInput.difficulty}
 - Divination Number: ${userInput.number}
 
 Please provide a comprehensive analysis considering all five hexagrams.
+
+Additionally, incorporate how the user's prior living experience in the listed previous cities may influence their mindset, resources, social networks, and adaptability regarding the current challenge. If relevant, point out contrasts and synergies between the current city and previous cities.
 
 Return ONLY valid JSON (no commentary, no markdown fences). The JSON must strictly match this schema:
 {

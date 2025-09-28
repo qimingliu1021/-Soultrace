@@ -151,9 +151,12 @@ RELATED HEXAGRAMS:
 
 USER'S SITUATION:
 - Location: ${userInput.city}
+- Previous Cities: ${Array.isArray(userInput.previousCities) && userInput.previousCities.length > 0 ? userInput.previousCities.join(', ') : 'N/A'}
 - Personal Experience: ${userInput.experience}
 - Current Difficulty: ${userInput.difficulty}
 - Divination Number: ${userInput.number}
+
+Incorporate how the user's prior living experience in the listed previous cities may influence their mindset, resources, social networks, and adaptability regarding the current challenge. If relevant, point out contrasts and synergies between the current city and previous cities.
 
 Format your streamed thoughts in English, then end with a final section labeled FINAL SUMMARY/INSIGHTS/RECOMMENDATIONS.`;
 }
@@ -165,12 +168,23 @@ export async function GET(req: NextRequest) {
   const difficulty = searchParams.get('difficulty') || '';
   const numberStr = searchParams.get('number') || '0';
   const preferredModel = searchParams.get('model') || undefined; // user may pass gpt-5; we will try then fallback
+  const previousCitiesRaw = searchParams.get('previousCities');
+  let previousCities: string[] | undefined = undefined;
+  if (previousCitiesRaw) {
+    try {
+      const parsed = JSON.parse(previousCitiesRaw);
+      if (Array.isArray(parsed)) {
+        previousCities = parsed.filter((x) => typeof x === 'string');
+      }
+    } catch {}
+  }
 
   const userInput = {
     city,
     experience,
     difficulty,
     number: Number(numberStr) || 0,
+    ...(previousCities ? { previousCities } : {}),
   };
 
   const stream = new ReadableStream<Uint8Array>({

@@ -6,6 +6,7 @@ import { Button } from './Button';
 interface InputFormProps {
   onSubmit: (data: {
     city: string;
+    previousCities?: string[];
     experience: string;
     difficulty: string;
     number: number;
@@ -16,6 +17,8 @@ interface InputFormProps {
 export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
   const [formData, setFormData] = useState({
     city: '',
+    previousCityInput: '',
+    previousCities: [] as string[],
     experience: '',
     difficulty: '',
     number: ''
@@ -26,6 +29,7 @@ export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
     if (formData.city && formData.experience && formData.difficulty && formData.number) {
       onSubmit({
         city: formData.city,
+        previousCities: formData.previousCities,
         experience: formData.experience,
         difficulty: formData.difficulty,
         number: parseInt(formData.number)
@@ -37,6 +41,27 @@ export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
+    });
+  };
+
+  const addPreviousCity = () => {
+    const v = formData.previousCityInput.trim();
+    if (!v) return;
+    if (formData.previousCities.includes(v)) {
+      setFormData({ ...formData, previousCityInput: '' });
+      return;
+    }
+    setFormData({
+      ...formData,
+      previousCities: [...formData.previousCities, v],
+      previousCityInput: ''
+    });
+  };
+
+  const removePreviousCity = (city: string) => {
+    setFormData({
+      ...formData,
+      previousCities: formData.previousCities.filter(c => c !== city)
     });
   };
 
@@ -58,9 +83,44 @@ export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
             value={formData.city}
             onChange={handleChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter Your City"
+            placeholder="Enter Your City, Country"
             required
           />
+        </div>
+
+        {/* Previous Cities */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Previous Cities</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              name="previousCityInput"
+              value={formData.previousCityInput}
+              onChange={handleChange}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Add any previous cities"
+            />
+            <Button type="button" onClick={addPreviousCity}>
+              Add
+            </Button>
+          </div>
+          {formData.previousCities.length > 0 && (
+            <ul className="flex flex-wrap gap-2 mt-3">
+              {formData.previousCities.map((c) => (
+                <li key={c} className="flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-1 rounded-full">
+                  <span>{c}</span>
+                  <button
+                    type="button"
+                    onClick={() => removePreviousCity(c)}
+                    className="text-gray-500 hover:text-gray-700"
+                    aria-label={`Remove ${c}`}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div>

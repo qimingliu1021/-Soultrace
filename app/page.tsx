@@ -9,6 +9,7 @@ export default function Home() {
 
   const handleFormSubmit = async (data: {
     city: string;
+    previousCities?: string[];
     experience: string;
     difficulty: string;
     number: number;
