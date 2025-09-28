@@ -1,5 +1,19 @@
 // I Ching 数据服务 - 使用 yijing.mjs
-import yijingData from '../../public/yijing.mjs';
+// 动态导入yijing数据
+let yijingData: any = null;
+
+async function loadYijingData() {
+  if (!yijingData) {
+    try {
+      const module = await import('../../public/yijing.mjs');
+      yijingData = module.default;
+    } catch (error) {
+      console.error('Failed to load yijing data:', error);
+      throw new Error('无法加载易经数据');
+    }
+  }
+  return yijingData;
+}
 
 export interface IChingHexagram {
   hex: number;
@@ -37,13 +51,14 @@ export interface IChingHexagram {
 }
 
 // 获取所有卦象数据
-export function getAllHexagrams(): IChingHexagram[] {
-  return Object.values(yijingData) as IChingHexagram[];
+export async function getAllHexagrams(): Promise<IChingHexagram[]> {
+  const data = await loadYijingData();
+  return Object.values(data) as IChingHexagram[];
 }
 
 // 根据数字计算卦象
-export function calculateHexagram(userNumber: number): IChingHexagram {
-  const hexagrams = getAllHexagrams();
+export async function calculateHexagram(userNumber: number): Promise<IChingHexagram> {
+  const hexagrams = await getAllHexagrams();
   const hexagramIndex = (userNumber % 64);
   return hexagrams[hexagramIndex] || hexagrams[0];
 }
@@ -60,13 +75,13 @@ function linesToBinary(lines: number[]): string {
 }
 
 // 根据二进制字符串查找对应的卦象
-function findHexagramByBinary(binary: string): IChingHexagram | null {
-  const hexagrams = getAllHexagrams();
+async function findHexagramByBinary(binary: string): Promise<IChingHexagram | null> {
+  const hexagrams = await getAllHexagrams();
   return hexagrams.find(h => h.binary.toString() === binary) || null;
 }
 
 // 计算变卦 (根据动爻改变)
-export function calculateChangedHexagram(originalHexagram: IChingHexagram, userNumber: number): IChingHexagram | null {
+export async function calculateChangedHexagram(originalHexagram: IChingHexagram, userNumber: number): Promise<IChingHexagram | null> {
   const lines = binaryToLines(originalHexagram.binary);
   // 使用用户数字的各位来确定动爻位置
   const changingLineIndex = (userNumber % 6); // 0-5 对应第1-6爻
@@ -77,11 +92,11 @@ export function calculateChangedHexagram(originalHexagram: IChingHexagram, userN
   newLines[changingLineIndex] = changingLine === 1 ? 0 : 1;
   
   const newBinary = linesToBinary(newLines);
-  return findHexagramByBinary(newBinary);
+  return await findHexagramByBinary(newBinary);
 }
 
 // 计算互卦 (取中间四爻)
-export function calculateMutualHexagram(originalHexagram: IChingHexagram): IChingHexagram | null {
+export async function calculateMutualHexagram(originalHexagram: IChingHexagram): Promise<IChingHexagram | null> {
   const lines = binaryToLines(originalHexagram.binary);
   // 第2、3、4爻形成下卦，第3、4、5爻形成上卦
   const lowerTrigram = [lines[1], lines[2], lines[3]]; // 第2、3、4爻
@@ -90,35 +105,42 @@ export function calculateMutualHexagram(originalHexagram: IChingHexagram): IChin
   const mutualLines = [...upperTrigram, ...lowerTrigram];
   const mutualBinary = linesToBinary(mutualLines);
   
-  return findHexagramByBinary(mutualBinary);
+  return await findHexagramByBinary(mutualBinary);
 }
 
 // 计算错卦 (阴阳全部反转)
-export function calculateOppositeHexagram(originalHexagram: IChingHexagram): IChingHexagram | null {
+export async function calculateOppositeHexagram(originalHexagram: IChingHexagram): Promise<IChingHexagram | null> {
   const lines = binaryToLines(originalHexagram.binary);
   const oppositeLines = lines.map(line => line === 1 ? 0 : 1);
   const oppositeBinary = linesToBinary(oppositeLines);
   
-  return findHexagramByBinary(oppositeBinary);
+  return await findHexagramByBinary(oppositeBinary);
 }
 
 // 计算综卦 (上下倒置)
-export function calculateInvertedHexagram(originalHexagram: IChingHexagram): IChingHexagram | null {
+export async function calculateInvertedHexagram(originalHexagram: IChingHexagram): Promise<IChingHexagram | null> {
   const lines = binaryToLines(originalHexagram.binary);
   const invertedLines = [...lines].reverse();
   const invertedBinary = linesToBinary(invertedLines);
   
-  return findHexagramByBinary(invertedBinary);
+  return await findHexagramByBinary(invertedBinary);
 }
 
 // 计算所有相关卦象
-export function calculateAllRelatedHexagrams(originalHexagram: IChingHexagram, userNumber: number) {
+export async function calculateAllRelatedHexagrams(originalHexagram: IChingHexagram, userNumber: number) {
+  const [changed, mutual, opposite, inverted] = await Promise.all([
+    calculateChangedHexagram(originalHexagram, userNumber),
+    calculateMutualHexagram(originalHexagram),
+    calculateOppositeHexagram(originalHexagram),
+    calculateInvertedHexagram(originalHexagram)
+  ]);
+
   return {
     original: originalHexagram, // 本卦
-    changed: calculateChangedHexagram(originalHexagram, userNumber), // 变卦
-    mutual: calculateMutualHexagram(originalHexagram), // 互卦
-    opposite: calculateOppositeHexagram(originalHexagram), // 错卦
-    inverted: calculateInvertedHexagram(originalHexagram) // 综卦
+    changed, // 变卦
+    mutual, // 互卦
+    opposite, // 错卦
+    inverted // 综卦
   };
 }
 

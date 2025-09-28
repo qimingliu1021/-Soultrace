@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { IChingHexagram } from '../lib/csvParser';
 import { AnalysisDisplay } from '../components/AnalysisDisplay';
@@ -29,6 +29,10 @@ function HexagramAnalysisContent() {
     };
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [thinkingLog, setThinkingLog] = useState<string>('');
+  const [analysisStream, setAnalysisStream] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     const loadResult = async () => {
@@ -86,6 +90,95 @@ function HexagramAnalysisContent() {
     loadResult();
   }, [searchParams]);
 
+  // Streaming handlers
+  function startStreaming(modelParam?: string) {
+    if (!result) return;
+    if (isStreaming) return;
+    const { city, experience, difficulty, number } = result.userInput;
+    const params = new URLSearchParams({
+      city,
+      experience,
+      difficulty,
+      number: String(number),
+    });
+    if (modelParam) params.set('model', modelParam);
+
+    const es = new EventSource(`/api/hexagrams/stream?${params.toString()}`);
+    esRef.current = es;
+    setIsStreaming(true);
+    setThinkingLog('');
+    setAnalysisStream('');
+
+    es.addEventListener('open', () => {
+      setThinkingLog(prev => prev + `Connected to analysis stream.\n`);
+    });
+
+    es.addEventListener('step', (evt: MessageEvent) => {
+      try {
+        const data = JSON.parse(evt.data);
+        if (data?.message) {
+          setThinkingLog(prev => prev + `• ${data.message}\n`);
+        }
+      } catch {
+        setThinkingLog(prev => prev + `• ${evt.data}\n`);
+      }
+    });
+
+    es.addEventListener('hexagrams', (evt: MessageEvent) => {
+      try {
+        const data = JSON.parse(evt.data);
+        setResult(prev => (prev ? { ...prev, allHexagrams: data } : prev));
+        setThinkingLog(prev => prev + `• Related hexagrams derived.\n`);
+      } catch {
+        // ignore
+      }
+    });
+
+    es.addEventListener('user_situation', (evt: MessageEvent) => {
+      try {
+        const data = JSON.parse(evt.data);
+        setThinkingLog(prev => prev + `• User situation analyzed.\n`);
+      } catch {
+        // ignore
+      }
+    });
+
+    es.addEventListener('analysis_start', (evt: MessageEvent) => {
+      setThinkingLog(prev => prev + `• Starting AI analysis (streaming)...\n`);
+    });
+
+    es.addEventListener('analysis_delta', (evt: MessageEvent) => {
+      try {
+        const data = JSON.parse(evt.data);
+        if (data?.text) setAnalysisStream(prev => prev + data.text);
+      } catch {
+        setAnalysisStream(prev => prev + evt.data);
+      }
+    });
+
+    es.addEventListener('analysis_done', () => {
+      setThinkingLog(prev => prev + `• Analysis completed.\n`);
+      stopStreaming();
+    });
+
+    es.addEventListener('analysis_info', (evt: MessageEvent) => {
+      setThinkingLog(prev => prev + `• Info: ${evt.data}\n`);
+    });
+
+    es.addEventListener('error', (evt: MessageEvent) => {
+      setThinkingLog(prev => prev + `• Error: ${evt.data}\n`);
+      stopStreaming();
+    });
+  }
+
+  function stopStreaming() {
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
+    setIsStreaming(false);
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
@@ -120,7 +213,7 @@ function HexagramAnalysisContent() {
         {/* 头部 */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gray-800 mb-4">
-            Your Divination Result
+            Your I Ching Result
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Based on the ancient wisdom of the I Ching
@@ -303,6 +396,51 @@ function HexagramAnalysisContent() {
             >
               Divinate Again
             </button>
+          </div>
+        </div>
+
+        {/* Live Streaming Analysis (English thinking process) */}
+        <div className="max-w-6xl mx-auto mt-12">
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-gray-800">Live Analysis (Streaming)</h3>
+              <div className="space-x-3">
+                {!isStreaming ? (
+                  <>
+                    <button
+                      onClick={() => startStreaming('gpt-5')}
+                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                    >
+                      Start Stream (gpt-5)
+                    </button>
+                    <button
+                      onClick={() => startStreaming()}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                    >
+                      Start Stream (default model)
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={stopStreaming}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    Stop Stream
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="text-lg font-semibold mb-2 text-gray-800">Thinking Process (English)</h4>
+                <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded border border-gray-200 h-64 overflow-auto">{thinkingLog || 'Click Start Stream to begin...'}</pre>
+              </div>
+              <div>
+                <h4 className="text-lg font-semibold mb-2 text-gray-800">AI Analysis (Streaming)</h4>
+                <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded border border-gray-200 h-64 overflow-auto">{analysisStream}</pre>
+              </div>
+            </div>
           </div>
         </div>
 

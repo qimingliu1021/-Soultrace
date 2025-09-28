@@ -17,43 +17,50 @@ export default function Home() {
     
     try {
       // 计算本卦
-      const originalHexagram = calculateHexagram(data.number);
+      const originalHexagram = await calculateHexagram(data.number);
       
       // 计算所有相关卦象
-      const allHexagrams = calculateAllRelatedHexagrams(originalHexagram, data.number);
+      const allHexagrams = await calculateAllRelatedHexagrams(originalHexagram, data.number);
       
       // Removed image generation
       
-      // 生成AI分析
-      let analysis: {
-        summary: string;
-        insights: string[];
-        recommendations: string[];
-      } | undefined;
+      // 使用AI Agent进行分析
+      let agentResult: any;
       try {
-        const analysisResponse = await fetch('/api/hexagrams', {
+        console.log('🤖 启动AI Agent分析...');
+        const agentResponse = await fetch('/api/hexagrams', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            hexagram: originalHexagram,
-            userInput: data,
-            allHexagrams: allHexagrams
+            userInput: data
           })
         });
-        const analysisData = await analysisResponse.json();
-        analysis = analysisData.analysis;
+        agentResult = await agentResponse.json();
+        console.log('✅ Agent分析完成:', agentResult);
       } catch (error) {
-        console.error('AI analysis failed:', error);
+        console.error('❌ Agent分析失败:', error);
+        agentResult = {
+          success: false,
+          analysis: {
+            summary: 'Agent分析暂时不可用',
+            insights: ['请稍后重试'],
+            recommendations: ['检查网络连接']
+          }
+        };
       }
       
       // Store data in sessionStorage and redirect
       const resultData = {
-        originalHexagram,
-        allHexagrams,
+        originalHexagram: agentResult.success ? agentResult.hexagrams?.original : originalHexagram,
+        allHexagrams: agentResult.success ? agentResult.hexagrams : allHexagrams,
         userInput: data,
-        analysis: analysis || undefined
+        analysis: agentResult.analysis,
+        agentContext: agentResult.agentContext,
+        personalizedInsights: agentResult.personalizedInsights,
+        session: agentResult.session,
+        agentSuccess: agentResult.success
       };
 
       console.log('Storing result data:', resultData);

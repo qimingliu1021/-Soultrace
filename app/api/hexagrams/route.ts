@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAllHexagrams } from '../../lib/csvParser';
+import { executeIChingAnalysis } from '../../lib/agent/orchestrator';
 
 export async function GET() {
   try {
@@ -11,39 +12,57 @@ export async function GET() {
   }
 }
 
-// AI 分析 API
+// AI Agent 分析 API
 export async function POST(request: Request) {
   try {
-    const { hexagram, userInput, allHexagrams } = await request.json();
+    const { userInput } = await request.json();
     
-    console.log('OpenAI API Key exists:', !!process.env.OPENAI_API_KEY);
-    console.log('OpenAI API Key length:', process.env.OPENAI_API_KEY?.length || 0);
+    console.log('🤖 启动 IChing Agent...');
+    console.log('用户输入:', userInput);
     
-    // Always try to get AI analysis, even if API key might not be configured
-    let analysis;
-    try {
-      analysis = await analyzeHexagramWithGPT(hexagram, userInput, allHexagrams);
-    } catch (error) {
-      console.error('AI analysis failed:', error);
-      // Return default analysis if AI fails
-      analysis = {
-        summary: 'AI analysis is not available. Please configure OpenAI API key.',
-        insights: ['The hexagram suggests seeking guidance from traditional sources'],
-        recommendations: ['Consult with a knowledgeable practitioner', 'Reflect deeply on the hexagram meanings']
-      };
+    // 使用新的Agent系统
+    const agentResult = await executeIChingAnalysis(userInput);
+    
+    if (agentResult.success) {
+      console.log('✅ Agent 执行成功');
+      
+      return NextResponse.json({ 
+        success: true,
+        analysis: agentResult.data.generateComprehensiveAnalysis,
+        hexagrams: agentResult.data.deriveRelatedHexagrams,
+        userSituation: agentResult.data.analyzeUserSituation,
+        session: agentResult.session,
+        personalizedInsights: agentResult.personalizedInsights,
+        agentContext: agentResult.data.context || '这是您的第一次占卜体验'
+      });
+    } else {
+      throw new Error('Agent execution failed');
     }
     
-    return NextResponse.json({ analysis });
   } catch (error) {
-    console.error('Error in AI analysis:', error);
-    return NextResponse.json({ 
-      error: 'Failed to analyze hexagram',
-      analysis: {
-        summary: 'Analysis failed. Please try again.',
-        insights: ['The hexagram offers wisdom for your situation'],
-        recommendations: ['Reflect on the hexagram meanings', 'Consider the guidance provided']
-      }
-    }, { status: 500 });
+    console.error('❌ Agent 执行失败:', error);
+    
+    // 回退到简单的分析
+    try {
+      const { userInput } = await request.json();
+      const simpleAnalysis = await analyzeHexagramWithGPT(null, userInput, null);
+      
+      return NextResponse.json({ 
+        success: false,
+        error: 'Agent failed, using fallback analysis',
+        analysis: simpleAnalysis
+      });
+    } catch (fallbackError) {
+      return NextResponse.json({ 
+        success: false,
+        error: 'Both Agent and fallback failed',
+        analysis: {
+          summary: '分析服务暂时不可用，请稍后重试',
+          insights: ['请尝试重新提交您的信息'],
+          recommendations: ['检查网络连接', '稍后重试']
+        }
+      }, { status: 500 });
+    }
   }
 }
 
@@ -54,7 +73,7 @@ async function analyzeHexagramWithGPT(hexagram: any, userInput: any, allHexagram
   
   const prompt = createAnalysisPrompt(hexagram, userInput, allHexagrams);
   
-  console.log('Sending request to OpenAI...');
+  console.log('Sending streaming request to OpenAI...');
   console.log('Prompt length:', prompt.length);
   
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -64,7 +83,7 @@ async function analyzeHexagramWithGPT(hexagram: any, userInput: any, allHexagram
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-5',
       messages: [
         {
           role: 'system',
@@ -77,6 +96,7 @@ async function analyzeHexagramWithGPT(hexagram: any, userInput: any, allHexagram
       ],
       max_tokens: 1000,
       temperature: 0.7,
+      stream: true,
     }),
   });
 
@@ -88,17 +108,54 @@ async function analyzeHexagramWithGPT(hexagram: any, userInput: any, allHexagram
     throw new Error(`OpenAI API request failed: ${response.status} ${errorText}`);
   }
 
-  const data = await response.json();
-  console.log('OpenAI response data:', data);
-  
-  const analysisText = data.choices[0]?.message?.content;
-  console.log('Analysis text:', analysisText);
-  
-  if (!analysisText) {
+  // Process streaming response
+  let fullText = '';
+  const reader = response.body?.getReader();
+  const decoder = new TextDecoder();
+
+  if (!reader) {
+    throw new Error('No response body reader available');
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') {
+            break;
+          }
+          
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              fullText += content;
+            }
+          } catch (e) {
+            // Skip invalid JSON lines
+            continue;
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  console.log('Full analysis text received:', fullText);
+
+  if (!fullText) {
     throw new Error('No analysis text received from OpenAI');
   }
-  
-  return parseAnalysisResponse(analysisText);
+
+  return parseAnalysisResponse(fullText);
 }
 
 function createAnalysisPrompt(hexagram: any, userInput: any, allHexagrams: any): string {
