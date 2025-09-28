@@ -36,9 +36,9 @@ export interface AgentState {
 export class IChingAgent {
   private state: AgentState;
   private userId: string;
-  private userInput: { city: string; experience: string; difficulty: string; number: number };
+  private userInput: { city: string; experience: string; difficulty: string; number: number; previousCities?: string[] };
 
-  constructor(userInput: { city: string; experience: string; difficulty: string; number: number }) {
+  constructor(userInput: { city: string; experience: string; difficulty: string; number: number; previousCities?: string[] }) {
     this.userId = generateUserId(userInput);
     this.userInput = userInput;
     this.state = {
@@ -238,18 +238,18 @@ export class IChingAgent {
   }
 
   // 获取用户输入
-  private getUserInput(): { city: string; experience: string; difficulty: string; number: number } {
+  private getUserInput(): { city: string; experience: string; difficulty: string; number: number; previousCities?: string[] } {
     return this.userInput;
   }
 }
 
 // Agent工厂函数
-export function createIChingAgent(userInput: { city: string; experience: string; difficulty: string; number: number }): IChingAgent {
+export function createIChingAgent(userInput: { city: string; experience: string; difficulty: string; number: number; previousCities?: string[] }): IChingAgent {
   return new IChingAgent(userInput);
 }
 
 // 简化的Agent执行函数
-export async function executeIChingAnalysis(userInput: { city: string; experience: string; difficulty: string; number: number }) {
+export async function executeIChingAnalysis(userInput: { city: string; experience: string; difficulty: string; number: number; previousCities?: string[] }) {
   const agent = createIChingAgent(userInput);
   return await agent.execute();
 }

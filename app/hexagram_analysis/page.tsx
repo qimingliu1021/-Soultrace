@@ -33,6 +33,10 @@ function HexagramAnalysisContent() {
   const [analysisStream, setAnalysisStream] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   const esRef = useRef<EventSource | null>(null);
+  const [cityImageUrl, setCityImageUrl] = useState<string | null>(null);
+  const [cityImagePrompt, setCityImagePrompt] = useState<string | null>(null);
+  const [cityImageLoading, setCityImageLoading] = useState<boolean>(false);
+  const [cityImageError, setCityImageError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadResult = async () => {
@@ -90,6 +94,48 @@ function HexagramAnalysisContent() {
     loadResult();
   }, [searchParams]);
 
+  // Generate city image once the user's city is available
+  useEffect(() => {
+    const generateCityImage = async (city: string) => {
+      try {
+        setCityImageLoading(true);
+        setCityImageError(null);
+        setCityImageUrl(null);
+        setCityImagePrompt(null);
+        const res = await fetch('/api/city-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ city })
+        });
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(txt || 'Failed to fetch city image');
+        }
+        const data = await res.json();
+        const url: string | null = data.imageUrl || null;
+        const b64: string | null = data.imageB64 || null;
+        const prompt: string | null = data.prompt || null;
+        setCityImagePrompt(prompt);
+        if (url) {
+          setCityImageUrl(url);
+        } else if (b64) {
+          setCityImageUrl(`data:image/png;base64,${b64}`);
+        } else {
+          throw new Error('No image returned');
+        }
+      } catch (e: any) {
+        setCityImageError(String(e?.message || e));
+      } finally {
+        setCityImageLoading(false);
+      }
+    };
+
+    const city = result?.userInput?.city?.trim();
+    if (city) {
+      generateCityImage(city);
+    }
+  }, [result?.userInput?.city]);
+
   // Streaming handlers
   function startStreaming(modelParam?: string) {
     if (!result) return;
@@ -101,6 +147,12 @@ function HexagramAnalysisContent() {
       difficulty,
       number: String(number),
     });
+    const prev = (result as any).userInput?.previousCities;
+    if (Array.isArray(prev) && prev.length > 0) {
+      try {
+        params.set('previousCities', JSON.stringify(prev));
+      } catch {}
+    }
     if (modelParam) params.set('model', modelParam);
 
     const es = new EventSource(`/api/hexagrams/stream?${params.toString()}`);
@@ -222,6 +274,30 @@ function HexagramAnalysisContent() {
 
         {/* 本卦信息 */}
         <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg mb-8">
+          {/* City-inspired Cinematic Image */}
+          <div className="mb-10">
+            <h3 className="text-2xl font-bold text-gray-800 mb-3 text-center">City-Inspired Image</h3>
+            <p className="text-center text-gray-600 mb-4">A cinematic visual inspired by your city: <span className="font-medium">{result.userInput.city}</span></p>
+            {cityImageLoading && (
+              <div className="text-center text-gray-500">Generating image...</div>
+            )}
+            {!cityImageLoading && cityImageError && (
+              <div className="text-center text-red-600 text-sm">{cityImageError}</div>
+            )}
+            {!cityImageLoading && cityImageUrl && (
+              <div className="rounded-lg overflow-hidden shadow">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={cityImageUrl} alt={`City artwork of ${result.userInput.city}`} className="w-full aspect-video object-cover" />
+              </div>
+            )}
+            {!cityImageLoading && cityImagePrompt && (
+              <details className="mt-3 bg-gray-50 p-3 rounded border border-gray-200">
+                <summary className="cursor-pointer text-sm text-gray-700">View image prompt</summary>
+                <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap">{cityImagePrompt}</p>
+              </details>
+            )}
+          </div>
+
           <div className="text-center mb-8">
             <h3 className="text-3xl font-bold text-gray-800 mb-2">
               本卦 (Primary Hexagram): {result.originalHexagram.trad_chinese} - {result.originalHexagram.english}
@@ -377,6 +453,16 @@ function HexagramAnalysisContent() {
                 <h5 className="font-medium text-gray-700 mb-2">City</h5>
                 <p className="text-gray-600">{result.userInput.city}</p>
               </div>
+              {Array.isArray((result as any).userInput?.previousCities) && (result as any).userInput.previousCities.length > 0 && (
+                <div>
+                  <h5 className="font-medium text-gray-700 mb-2">Previous Cities</h5>
+                  <ul className="text-gray-600 list-disc list-inside space-y-1">
+                    {(result as any).userInput.previousCities.map((c: string) => (
+                      <li key={c}>{c}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div>
                 <h5 className="font-medium text-gray-700 mb-2">Personal Experience</h5>
                 <p className="text-gray-600">{result.userInput.experience}</p>
