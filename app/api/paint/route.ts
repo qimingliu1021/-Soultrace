@@ -1,6 +1,6 @@
-import {NextRequest, NextResponse} from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
-const MCP_ENDPOINT = process.env.MCP_SERVER_URL ?? 'http://localhost:8787/mcp';
+const MCP_ENDPOINT = process.env.MCP_SERVER_URL ?? "http://localhost:8787/mcp";
 
 interface PaintRequestBody {
   prompt?: string;
@@ -13,19 +13,20 @@ export async function POST(request: NextRequest) {
 
   try {
     body = await request.json();
+    // console.log("[paint-api] Request body:", body);
   } catch {
-    return NextResponse.json({error: 'Invalid JSON body'}, {status: 400});
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   try {
     const response = await fetch(MCP_ENDPOINT, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        type: 'call_tool',
-        tool_name: 'generate_html_painting',
+        type: "call_tool",
+        tool_name: "generate_html_painting",
         arguments: {
           prompt: body.prompt,
           palette: body.palette,
@@ -34,25 +35,36 @@ export async function POST(request: NextRequest) {
       }),
     });
 
+    // console.log("[paint-api] MCP server response status:", response);
+
     if (!response.ok) {
       const errorPayload = await response.json().catch(() => null);
       return NextResponse.json(
         {
-          error: 'Painting agent failed',
+          error: "Painting agent failed",
           details: errorPayload ?? (await response.text()),
         },
-        {status: 502}
+        { status: 502 }
       );
     }
 
     const data = await response.json();
 
-    if (data?.type !== 'tool_response' || data?.tool_name !== 'generate_html_painting') {
-      return NextResponse.json({error: 'Unexpected response from MCP server'}, {status: 502});
+    if (
+      data?.type !== "tool_response" ||
+      data?.tool_name !== "generate_html_painting"
+    ) {
+      return NextResponse.json(
+        { error: "Unexpected response from MCP server" },
+        { status: 502 }
+      );
     }
 
-    return NextResponse.json(data.content, {status: 200});
+    return NextResponse.json(data.content, { status: 200 });
   } catch (error) {
-    return NextResponse.json({error: 'Unable to reach MCP server', details: String(error)}, {status: 504});
+    return NextResponse.json(
+      { error: "Unable to reach MCP server", details: String(error) },
+      { status: 504 }
+    );
   }
 }

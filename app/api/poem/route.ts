@@ -15,20 +15,20 @@ interface PoemRequestBody {
 }
 
 export async function POST(request: NextRequest) {
-  console.log("[poem-api] Starting poem generation request");
+  // console.log("[poem-api] Starting poem generation request");
 
   let body: PoemRequestBody;
 
   try {
     body = await request.json();
-    console.log("[poem-api] Request body:", body);
+    // console.log("[poem-api] Request body:", body);
   } catch {
     console.error("[poem-api] Invalid JSON body");
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   try {
-    console.log("[poem-api] Calling MCP server at:", MCP_ENDPOINT);
+    // console.log("[poem-api] Calling MCP server at:", MCP_ENDPOINT);
 
     const requestPayload = {
       type: "call_tool",
@@ -46,11 +46,6 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    console.log(
-      "[poem-api] Request payload:",
-      JSON.stringify(requestPayload, null, 2)
-    );
-
     const response = await fetch(MCP_ENDPOINT, {
       method: "POST",
       headers: {
@@ -59,7 +54,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(requestPayload),
     });
 
-    console.log("[poem-api] MCP server response status:", response.status);
+    // console.log("[poem-api] MCP server response status:", response.status);
 
     if (!response.ok) {
       const errorPayload = await response.json().catch(() => null);
@@ -82,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log("[poem-api] MCP server response data:", data);
+    // console.log("[poem-api] MCP server response data:", data);
 
     if (
       data?.type !== "tool_response" ||
@@ -95,7 +90,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("[poem-api] Success! Returning poem data");
+    // console.log("[poem-api] Success! Returning poem data");
     return NextResponse.json(data.content, { status: 200 });
   } catch (error) {
     console.error("[poem-api] Network error:", error);

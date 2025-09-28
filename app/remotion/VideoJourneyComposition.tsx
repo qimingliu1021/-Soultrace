@@ -4,7 +4,6 @@ import {
   interpolate,
   staticFile,
   useCurrentFrame,
-  useVideoConfig,
 } from "remotion";
 import type { PaintingSlideConfig } from "./generatedPaintings";
 
@@ -43,17 +42,51 @@ const baseBackground =
   "radial-gradient(circle at bottom right, rgba(250, 112, 154, 0.22), transparent 52%)," +
   "linear-gradient(140deg, #050816 0%, #0b1533 48%, #04040d 100%)";
 
-const sanitizeHtml = (html: string) => {
+const FALLBACK_HTML_CONTENT =
+  '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#fff;font-family:Inter,sans-serif">No content</div>';
+
+interface PreparedPaintingDocument {
+  head: string;
+  bodyContent: string;
+  bodyAttributes: string;
+}
+
+const stripScripts = (markup: string) =>
+  markup.replace(/<script[\s\S]*?<\/script>/gi, "");
+
+const preparePaintingDocument = (html: string): PreparedPaintingDocument => {
   if (!html.trim()) {
-    return '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#fff;font-family:Inter,sans-serif">No content</div>';
+    return {
+      head: "",
+      bodyContent: FALLBACK_HTML_CONTENT,
+      bodyAttributes: "",
+    };
   }
 
-  return html
-    .replace(/<!DOCTYPE[^>]*>/gi, "")
-    .replace(/<\/?html[^>]*>/gi, "")
-    .replace(/<head>[\s\S]*?<\/head>/gi, "")
-    .replace(/<body[^>]*>/gi, '<div class="html-painting-root">')
-    .replace(/<\/body>/gi, "</div>");
+  const withoutDocType = html.replace(/<!DOCTYPE[^>]*>/gi, "");
+  const withoutHtml = withoutDocType.replace(/<\/?html[^>]*>/gi, "");
+
+  const headMatch = withoutHtml.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+  const head = headMatch ? stripScripts(headMatch[1]) : "";
+
+  const bodyMatch = withoutHtml.match(/<body([^>]*)>([\s\S]*?)<\/body>/i);
+  const bodyAttributes = bodyMatch?.[1]?.trim() ?? "";
+
+  let bodyContent = bodyMatch
+    ? bodyMatch[2]
+    : withoutHtml.replace(/<head[^>]*>[\s\S]*?<\/head>/i, "");
+
+  bodyContent = stripScripts(bodyContent).trim();
+
+  if (!bodyContent) {
+    bodyContent = FALLBACK_HTML_CONTENT;
+  }
+
+  return {
+    head,
+    bodyContent,
+    bodyAttributes,
+  };
 };
 
 export const VideoJourneyComposition: React.FC<
@@ -128,6 +161,12 @@ export const VideoJourneyComposition: React.FC<
           extrapolateRight: "clamp",
         });
 
+        const preparedDoc = preparePaintingDocument(slide.html);
+
+        const bodyAttributes = preparedDoc.bodyAttributes
+          ? ` ${preparedDoc.bodyAttributes}`
+          : "";
+
         return (
           <AbsoluteFill
             key={slide.id}
@@ -137,9 +176,7 @@ export const VideoJourneyComposition: React.FC<
             }}
           >
             <iframe
-              srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8" /><style>body{margin:0;} .html-painting-root{width:100%;height:100%;}</style></head><body>${sanitizeHtml(
-                slide.html
-              )}</body></html>`}
+              srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8" /><style>html,body{margin:0;height:100%;width:100%;}</style>${preparedDoc.head}</head><body${bodyAttributes}>${preparedDoc.bodyContent}</body></html>`}
               style={{
                 width: "100%",
                 height: "100%",
@@ -169,12 +206,9 @@ export const VideoJourneyComposition: React.FC<
         >
           <div
             style={{
-              background: "rgba(5, 8, 22, 0.85)",
-              backdropFilter: "blur(12px)",
-              borderRadius: "24px",
+              background: "transparent",
               padding: "32px 48px",
-              border: "1px solid rgba(155, 231, 255, 0.2)",
-              boxShadow: "0 24px 48px rgba(5, 8, 22, 0.6)",
+              borderRadius: "24px",
               maxWidth: "800px",
               textAlign: "center",
               opacity: interpolate(
@@ -205,6 +239,7 @@ export const VideoJourneyComposition: React.FC<
                 fontWeight: 400,
                 letterSpacing: "0.02em",
                 whiteSpace: "pre-line",
+                textShadow: "0 6px 30px rgba(4, 6, 18, 0.85)",
               }}
             >
               {currentParagraph.text}
