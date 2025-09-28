@@ -10,9 +10,10 @@ interface InputFormProps {
     difficulty: string;
     number: number;
   }) => void;
+  isLoading?: boolean;
 }
 
-export function InputForm({ onSubmit }: InputFormProps) {
+export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
   const [formData, setFormData] = useState({
     city: '',
     experience: '',
@@ -96,7 +97,7 @@ export function InputForm({ onSubmit }: InputFormProps) {
 
         <div>
           <label htmlFor="number" className="block text-sm font-medium text-gray-700 mb-2">
-            Divination Number (1-1000)
+            Divination Number (100-1000)
           </label>
           <input
             type="number"
@@ -104,19 +105,26 @@ export function InputForm({ onSubmit }: InputFormProps) {
             name="number"
             value={formData.number}
             onChange={handleChange}
-            min="1"
+            min="100"
             max="1000"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Please enter a number between 1 and 1000"
+            placeholder="Please enter a number between 100 and 1000"
             required
           />
           <p className="text-sm text-gray-500 mt-1">
-            This number will be used to calculate your hexagram (number modulo 8)
+            This number will be used to calculate your hexagram
           </p>
         </div>
 
-        <Button type="submit" className="w-full">
-          Start Divination
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? (
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              Processing...
+            </div>
+          ) : (
+            'Start Divination'
+          )}
         </Button>
       </form>
     </div>

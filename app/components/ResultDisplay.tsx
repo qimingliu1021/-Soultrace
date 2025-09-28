@@ -1,7 +1,6 @@
 'use client';
 
-import { IChingHexagram } from '../lib/iching';
-import Image from 'next/image';
+import { IChingHexagram } from '../lib/csvParser';
 
 interface ResultDisplayProps {
   hexagram: IChingHexagram;
@@ -11,14 +10,12 @@ interface ResultDisplayProps {
     difficulty: string;
     number: number;
   };
-  generatedImageUrl?: string;
   isLoading?: boolean;
 }
 
 export function ResultDisplay({ 
   hexagram, 
   userInput, 
-  generatedImageUrl, 
   isLoading = false 
 }: ResultDisplayProps) {
   return (
@@ -31,10 +28,10 @@ export function ResultDisplay({
       <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
         <div className="text-center mb-4">
           <h3 className="text-2xl font-bold text-gray-800">
-            {hexagram.chineseName} - {hexagram.name}
+            {hexagram.trad_chinese} - {hexagram.english}
           </h3>
           <p className="text-lg text-gray-600 mt-2">
-            {hexagram.description}
+            {hexagram.wilhelm_symbolic}
           </p>
         </div>
         
@@ -48,64 +45,52 @@ export function ResultDisplay({
       <div className="mb-8">
         <h4 className="text-xl font-semibold mb-4 text-gray-800">Judgment</h4>
         <p className="text-lg text-gray-700 leading-relaxed italic">
-          &ldquo;{hexagram.judgment}&rdquo;
+          &ldquo;{hexagram.wilhelm_judgment.text}&rdquo;
         </p>
-      </div>
-
-      {/* Image Text */}
-      <div className="mb-8">
-        <h4 className="text-xl font-semibold mb-4 text-gray-800">Image</h4>
-        <p className="text-lg text-gray-700 leading-relaxed italic">
-          &ldquo;{hexagram.image}&rdquo;
-        </p>
-      </div>
-
-      {/* Lines */}
-      <div className="mb-8">
-        <h4 className="text-xl font-semibold mb-4 text-gray-800">Lines</h4>
-        <div className="space-y-3">
-          {hexagram.lines.map((line, index) => (
-            <div key={index} className="p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-start">
-                <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-800 text-sm font-medium rounded-full mr-3 flex-shrink-0">
-                  {index + 1}
-                </span>
-                <p className="text-gray-700 leading-relaxed">
-                  {line}
-                </p>
-              </div>
-            </div>
-          ))}
+        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+          <h5 className="font-medium text-gray-700 mb-2">Interpretation:</h5>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            {hexagram.wilhelm_judgment.comments}
+          </p>
         </div>
       </div>
 
-      {/* Generated Image */}
+      {/* Image */}
       <div className="mb-8">
-        <h4 className="text-xl font-semibold mb-4 text-gray-800">Generated Image</h4>
-        <div className="text-center">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Generating your image...</p>
+        <h4 className="text-xl font-semibold mb-4 text-gray-800">Image</h4>
+        <p className="text-lg text-gray-700 leading-relaxed italic">
+          &ldquo;{hexagram.wilhelm_image.text}&rdquo;
+        </p>
+        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+          <h5 className="font-medium text-gray-700 mb-2">Interpretation:</h5>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            {hexagram.wilhelm_image.comments}
+          </p>
+        </div>
+      </div>
+
+      {/* Lines (六爻) */}
+      <div className="mb-8">
+        <h4 className="text-xl font-semibold mb-6 text-gray-800 text-center">The Six Lines (六爻)</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Object.entries(hexagram.wilhelm_lines).map(([lineNumber, lineData], index) => (
+            <div key={lineNumber} className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 rounded-lg border border-amber-200 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center mb-3">
+                <div className="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                  {lineNumber}
+                </div>
+                <h5 className="text-sm font-medium text-amber-800">
+                  Line {lineNumber} {index === 0 ? '(Bottom)' : index === 5 ? '(Top)' : ''}
+                </h5>
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed mb-2 italic">
+                "{lineData.text}"
+              </p>
+              <div className="text-xs text-gray-600 leading-relaxed">
+                {lineData.comments}
               </div>
             </div>
-          ) : generatedImageUrl ? (
-            <div className="relative">
-              <Image
-                src={generatedImageUrl}
-                alt={`${hexagram.chineseName} Hexagram Image`}
-                width={1024}
-                height={1024}
-                className="rounded-lg shadow-lg mx-auto"
-                priority
-              />
-            </div>
-          ) : (
-            <div className="h-64 bg-gray-100 rounded-lg flex items-center justify-center">
-              <p className="text-gray-500">Image generation failed. Please try again later.</p>
-            </div>
-          )}
+          ))}
         </div>
       </div>
 
