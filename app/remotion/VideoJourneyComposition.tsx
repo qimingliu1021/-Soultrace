@@ -1,120 +1,245 @@
-import {AbsoluteFill, Audio, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {
+  AbsoluteFill,
+  Audio,
+  interpolate,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
+import type { PaintingSlideConfig } from "./generatedPaintings";
 
 export const VIDEO_FPS = 30;
-export const VIDEO_DURATION_SECONDS = 12;
-export const VIDEO_DURATION_IN_FRAMES = VIDEO_FPS * VIDEO_DURATION_SECONDS;
+export const SLIDE_DURATION_SECONDS = 6;
+export const SLIDE_DURATION_FRAMES = SLIDE_DURATION_SECONDS * VIDEO_FPS;
 
-const svgMarkup = `
-  <svg width="1280" height="720" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#6a5af9" />
-        <stop offset="50%" stop-color="#b86bff" />
-        <stop offset="100%" stop-color="#9be7ff" />
-      </linearGradient>
-      <radialGradient id="glow" cx="50%" cy="40%" r="60%">
-        <stop offset="0%" stop-color="#ffffff" stop-opacity="0.65" />
-        <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
-      </radialGradient>
-    </defs>
-    <rect width="1280" height="720" fill="url(#grad)" rx="48" ry="48" />
-    <circle cx="1040" cy="160" r="220" fill="url(#glow)" />
-    <circle cx="360" cy="580" r="180" fill="rgba(255, 255, 255, 0.45)" />
-    <g fill="#0c0633" fill-opacity="0.08">
-      <circle cx="220" cy="200" r="60" />
-      <circle cx="520" cy="180" r="44" />
-      <circle cx="820" cy="320" r="70" />
-      <circle cx="980" cy="500" r="56" />
-    </g>
-    <text x="110" y="360" font-family="'Inter', sans-serif" font-size="72" font-weight="700" fill="#120739">
-      Soultrace Journey
-    </text>
-    <text x="110" y="432" font-family="'Inter', sans-serif" font-size="36" fill="#120739" opacity="0.8">
-      Where stories come alive
-    </text>
-  </svg>
-`;
+export interface PaintingSlide extends PaintingSlideConfig {
+  html: string;
+  meta?: {
+    model?: string;
+    usedOpenAI?: boolean;
+    tokens?: unknown;
+    error?: string;
+  };
+}
 
-const dummyImage = `data:image/svg+xml;utf8,${encodeURIComponent(svgMarkup)}`;
+export interface PoemData {
+  poem: string;
+  paragraphs: string[];
+  meta?: {
+    model?: string;
+    usedOpenAI?: boolean;
+    selectedGenre?: string;
+    paragraphCount?: number;
+  };
+}
 
-export const VideoJourneyComposition: React.FC = () => {
+export interface VideoJourneyCompositionProps {
+  slides: readonly PaintingSlide[];
+  poem?: PoemData;
+}
+
+const baseBackground =
+  "radial-gradient(circle at top left, rgba(24, 69, 139, 0.28), transparent 58%)," +
+  "radial-gradient(circle at bottom right, rgba(250, 112, 154, 0.22), transparent 52%)," +
+  "linear-gradient(140deg, #050816 0%, #0b1533 48%, #04040d 100%)";
+
+const sanitizeHtml = (html: string) => {
+  if (!html.trim()) {
+    return '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#fff;font-family:Inter,sans-serif">No content</div>';
+  }
+
+  return html
+    .replace(/<!DOCTYPE[^>]*>/gi, "")
+    .replace(/<\/?html[^>]*>/gi, "")
+    .replace(/<head>[\s\S]*?<\/head>/gi, "")
+    .replace(/<body[^>]*>/gi, '<div class="html-painting-root">')
+    .replace(/<\/body>/gi, "</div>");
+};
+
+export const VideoJourneyComposition: React.FC<
+  VideoJourneyCompositionProps
+> = ({ slides, poem }) => {
   const frame = useCurrentFrame();
-  const {fps, width} = useVideoConfig();
+  const safeSlides =
+    slides.length > 0
+      ? slides
+      : [
+          {
+            id: "placeholder",
+            title: "Awaiting Paintings",
+            description: "Paintings will appear once the agent responds.",
+            prompt: "Placeholder",
+            palette: ["#64748B", "#94A3B8", "#CBD5F5"],
+            city: "Loading",
+            country: "…",
+            aspectRatio: "16:9",
+            html: '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#f9fbff;background:linear-gradient(120deg,#1f2937,#0f172a);font-family:Inter,sans-serif">Loading…</div>',
+          },
+        ];
 
-  const fadeInDuration = fps * 0.8;
-  const fadeOutStart = VIDEO_DURATION_IN_FRAMES - fps;
+  // Calculate which poem paragraph should be displayed
+  const getCurrentPoemParagraph = () => {
+    if (!poem?.paragraphs || poem.paragraphs.length === 0) {
+      return null;
+    }
 
-  const overallOpacity = interpolate(frame, [0, fadeInDuration, fadeOutStart, VIDEO_DURATION_IN_FRAMES], [0, 1, 1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+    const totalFrames = safeSlides.length * SLIDE_DURATION_FRAMES;
+    const paragraphDuration = totalFrames / 4; // 4 paragraphs over total duration
 
-  const zoom = interpolate(frame, [0, VIDEO_DURATION_IN_FRAMES], [1, 1.05], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+    const paragraphIndex = Math.floor(frame / paragraphDuration);
 
-  const subtitleOffset = interpolate(frame, [fps * 1.2, fps * 2.2], [24, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+    if (paragraphIndex >= 0 && paragraphIndex < poem.paragraphs.length) {
+      return {
+        text: poem.paragraphs[paragraphIndex],
+        index: paragraphIndex,
+        progress: (frame % paragraphDuration) / paragraphDuration,
+      };
+    }
+
+    return null;
+  };
+
+  const currentParagraph = getCurrentPoemParagraph();
 
   return (
     <AbsoluteFill
       style={{
-        background: '#050816',
-        justifyContent: 'center',
-        alignItems: 'center',
-        color: '#f9fbff',
         fontFamily: 'var(--font-sans, "Inter", "SF Pro Display", system-ui)',
-        opacity: overallOpacity,
+        color: "#f8fbff",
+        background: baseBackground,
+        overflow: "hidden",
       }}
     >
-      <AbsoluteFill style={{
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 48,
-        padding: 48,
-      }}>
-        <Img
-          src={dummyImage}
+      {safeSlides.map((slide, index) => {
+        const start = index * SLIDE_DURATION_FRAMES;
+        const end = start + SLIDE_DURATION_FRAMES;
+        const slideOpacity = interpolate(
+          frame,
+          [start, start + 18, end - 18, end],
+          [0, 1, 1, 0],
+          {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          }
+        );
+
+        const zoom = interpolate(frame, [start, end], [1.02, 1.06], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
+
+        return (
+          <AbsoluteFill
+            key={slide.id}
+            style={{
+              opacity: slideOpacity,
+              pointerEvents: "none",
+            }}
+          >
+            <iframe
+              srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8" /><style>body{margin:0;} .html-painting-root{width:100%;height:100%;}</style></head><body>${sanitizeHtml(
+                slide.html
+              )}</body></html>`}
+              style={{
+                width: "100%",
+                height: "100%",
+                border: "none",
+                display: "block",
+                transform: `scale(${zoom})`,
+                transformOrigin: "center",
+                background: "#020617",
+              }}
+            />
+          </AbsoluteFill>
+        );
+      })}
+
+      {/* Poem Overlay */}
+      {currentParagraph && (
+        <AbsoluteFill
           style={{
-            width: Math.min(width * 0.75, 960),
-            borderRadius: 36,
-            boxShadow: '0 40px 80px rgba(16, 15, 60, 0.45)',
-            transform: `scale(${zoom})`,
-            transformOrigin: 'center',
-          }}
-        />
-        <div
-          style={{
-            maxWidth: Math.min(width * 0.75, 960),
-            textAlign: 'center',
+            pointerEvents: "none",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "flex-start",
+            alignItems: "center",
+            padding: "60px 80px",
+            zIndex: 10,
           }}
         >
-          <h1
+          <div
             style={{
-              fontSize: width < 720 ? 48 : 64,
-              marginBottom: 16,
-              letterSpacing: 2,
-              textTransform: 'uppercase',
+              background: "rgba(5, 8, 22, 0.85)",
+              backdropFilter: "blur(12px)",
+              borderRadius: "24px",
+              padding: "32px 48px",
+              border: "1px solid rgba(155, 231, 255, 0.2)",
+              boxShadow: "0 24px 48px rgba(5, 8, 22, 0.6)",
+              maxWidth: "800px",
+              textAlign: "center",
+              opacity: interpolate(
+                currentParagraph.progress,
+                [0, 0.1, 0.9, 1],
+                [0, 1, 1, 0.8],
+                {
+                  extrapolateLeft: "clamp",
+                  extrapolateRight: "clamp",
+                }
+              ),
+              transform: `translateY(${interpolate(
+                currentParagraph.progress,
+                [0, 0.1],
+                [20, 0],
+                {
+                  extrapolateLeft: "clamp",
+                  extrapolateRight: "clamp",
+                }
+              )}px)`,
             }}
           >
-            Your Video Journey
-          </h1>
-          <p
-            style={{
-              fontSize: width < 720 ? 20 : 24,
-              lineHeight: 1.5,
-              opacity: 0.85,
-              transform: `translateY(${subtitleOffset}px)`,
-            }}
-          >
-            This motion preview blends imagery and audio to showcase how Soultrace spins stories, memories, and emotions into immersive narratives.
-          </p>
-        </div>
-      </AbsoluteFill>
-      <Audio src={staticFile('/media/dummy-theme.wav')} volume={0.4} />
+            <div
+              style={{
+                fontSize: "clamp(18px, 2.5vw, 24px)",
+                lineHeight: 1.6,
+                color: "#f8fbff",
+                fontWeight: 400,
+                letterSpacing: "0.02em",
+                whiteSpace: "pre-line",
+              }}
+            >
+              {currentParagraph.text}
+            </div>
+
+            {/* Progress indicator */}
+            <div
+              style={{
+                marginTop: "24px",
+                display: "flex",
+                justifyContent: "center",
+                gap: "8px",
+              }}
+            >
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: "8px",
+                    height: "8px",
+                    borderRadius: "50%",
+                    background:
+                      i === currentParagraph.index
+                        ? "#9be7ff"
+                        : "rgba(155, 231, 255, 0.3)",
+                    transition: "all 0.3s ease",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </AbsoluteFill>
+      )}
+
+      <Audio src={staticFile("/media/dummy-theme.wav")} volume={0.4} loop />
     </AbsoluteFill>
   );
 };
