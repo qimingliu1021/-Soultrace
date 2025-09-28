@@ -2,21 +2,9 @@
 
 import { useState } from 'react';
 import { InputForm } from './components/InputForm';
-import { ResultDisplay } from './components/ResultDisplay';
-import { calculateHexagram, generateImagePrompt, IChingHexagram } from './lib/iching';
-import { generateImage } from './lib/imageGeneration';
+import { calculateHexagram, calculateAllRelatedHexagrams } from './lib/csvParser';
 
 export default function Home() {
-  const [result, setResult] = useState<{
-    hexagram: IChingHexagram;
-    userInput: {
-      city: string;
-      experience: string;
-      difficulty: string;
-      number: number;
-    };
-    generatedImageUrl?: string;
-  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleFormSubmit = async (data: {
@@ -28,32 +16,62 @@ export default function Home() {
     setIsLoading(true);
     
     try {
-      // 计算卦象
-      const hexagram = calculateHexagram(data.number);
+      // 计算本卦
+      const originalHexagram = await calculateHexagram(data.number);
       
-      // 生成图像提示词
-      const imagePrompt = generateImagePrompt(
-        hexagram,
-        data.city,
-        data.experience,
-        data.difficulty
-      );
+      // 计算所有相关卦象
+      const allHexagrams = await calculateAllRelatedHexagrams(originalHexagram, data.number);
       
-      // 生成图像
-      let generatedImageUrl: string | null = null;
+      // Removed image generation
+      
+      // 使用AI Agent进行分析
+      let agentResult: any;
       try {
-        generatedImageUrl = await generateImage(imagePrompt);
+        console.log('🤖 启动AI Agent分析...');
+        const agentResponse = await fetch('/api/hexagrams', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userInput: data
+          })
+        });
+        agentResult = await agentResponse.json();
+        console.log('✅ Agent分析完成:', agentResult);
       } catch (error) {
-        console.error('Image generation failed:', error);
-        // 如果图像生成失败，使用占位符
-        generatedImageUrl = `https://picsum.photos/1024/1024?random=${data.number}`;
+        console.error('❌ Agent分析失败:', error);
+        agentResult = {
+          success: false,
+          analysis: {
+            summary: 'Agent分析暂时不可用',
+            insights: ['请稍后重试'],
+            recommendations: ['检查网络连接']
+          }
+        };
       }
       
-      setResult({
-        hexagram,
+      // Store data in sessionStorage and redirect
+      const resultData = {
+        originalHexagram: agentResult.success ? agentResult.hexagrams?.original : originalHexagram,
+        allHexagrams: agentResult.success ? agentResult.hexagrams : allHexagrams,
         userInput: data,
-        generatedImageUrl: generatedImageUrl || undefined
-      });
+        analysis: agentResult.analysis,
+        agentContext: agentResult.agentContext,
+        personalizedInsights: agentResult.personalizedInsights,
+        session: agentResult.session,
+        agentSuccess: agentResult.success
+      };
+
+      console.log('Storing result data:', resultData);
+      
+      // Store the data in sessionStorage
+      sessionStorage.setItem('hexagramResult', JSON.stringify(resultData));
+      
+      console.log('Redirecting to hexagram_analysis page');
+      
+      // Redirect to result page
+      window.location.href = '/hexagram_analysis';
     } catch (error) {
       console.error('Error processing divination:', error);
     } finally {
@@ -75,16 +93,7 @@ export default function Home() {
         </div>
 
         {/* 主要内容 */}
-        {!result ? (
-          <InputForm onSubmit={handleFormSubmit} />
-        ) : (
-          <ResultDisplay
-            hexagram={result.hexagram}
-            userInput={result.userInput}
-            generatedImageUrl={result.generatedImageUrl}
-            isLoading={isLoading}
-          />
-        )}
+        <InputForm onSubmit={handleFormSubmit} isLoading={isLoading} />
 
         {/* 底部信息 */}
         <footer className="text-center mt-16 text-gray-500">
