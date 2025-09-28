@@ -1,8 +1,9 @@
 "use client";
 
 import { Player } from "@remotion/player";
+import type { PlayerRef } from "@remotion/player";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   SLIDE_DURATION_FRAMES,
   VIDEO_FPS,
@@ -11,6 +12,7 @@ import {
   type PoemData,
 } from "../remotion/VideoJourneyComposition";
 import { paintingSlides } from "../remotion/generatedPaintings";
+import { PoemNarrationPlayer } from "../components/PoemNarrationPlayer";
 
 const COMPOSITION_WIDTH = 1280;
 const COMPOSITION_HEIGHT = 720;
@@ -37,6 +39,7 @@ const VideoJourneyPage = () => {
   const [isLoadingPoem, setIsLoadingPoem] = useState(true);
   const [paintingError, setPaintingError] = useState<string | null>(null);
   const [poemError, setPoemError] = useState<string | null>(null);
+  const playerRef = useRef<PlayerRef | null>(null);
 
   // Check function to determine if all five images are ready
   const areAllImagesReady = useCallback(() => {
@@ -249,7 +252,8 @@ const VideoJourneyPage = () => {
         style={playerStyle}
         className="video-journey-player"
         showPosterWhenUnplayed
-        inputProps={{ slides: slides, poem: poem }}
+        ref={playerRef}
+        inputProps={{ slides: slides, poem: poem ?? undefined }}
       />
     );
   };
@@ -422,6 +426,26 @@ const VideoJourneyPage = () => {
         {renderAgentStatus()}
 
         {renderVideoOrLoading()}
+
+        {poem?.paragraphs?.length ? (
+          <>
+            <PoemNarrationPlayer
+              poem={poem}
+              playerRef={playerRef}
+              durationInFrames={durationInFrames}
+            />
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: 1.2,
+                textTransform: "uppercase",
+                opacity: 0.7,
+              }}
+            >
+              Audio narration uses an AI-generated voice.
+            </div>
+          </>
+        ) : null}
 
         <button
           type="button"

@@ -6,6 +6,14 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const SYSTEM_INSTRUCTIONS = `You are a skilled multimedia poet. You always craft verse that aligns to strict timing requirements for video journeys.
+
+CRITICAL RULES:
+- Output exactly 4 paragraphs (no more, no less).
+- Each paragraph must contain 4-6 poetic lines.
+- Maintain strong narrative flow across paragraphs following the provided journey context.
+- Return only the poem content formatted as paragraphs separated by blank lines.`;
+
 // Video Journey specific configuration
 const VIDEO_JOURNEY_CONFIG = {
   totalSlides: 5,
@@ -92,6 +100,8 @@ const POEM_GENRES = {
       "Perfect for celebrating the beauty and diversity of different cities",
   },
 };
+
+console.log("poemAgent.js loaded successfully");
 
 // Life situation to genre mapping for video journey
 const LIFE_SITUATION_MAPPING = {
@@ -296,34 +306,23 @@ We discover our own inner light.`,
       cities,
     });
 
-    // Use the correct OpenAI Chat Completions API
-    const response = await client.chat.completions.create({
-      model: "gpt-4", // Use gpt-4 instead of non-existent gpt-5
-      messages: [
-        {
-          role: "system",
-          content: `You are a skilled poet who specializes in creating poetry for multimedia experiences. You understand how to write poems that synchronize with visual content and create emotional resonance with video narratives. 
-
-CRITICAL: You MUST write exactly 4 paragraphs, each 4-6 lines long. This is non-negotiable as it syncs with a 30-second video timeline (4 paragraphs × 6 seconds each + 6 seconds for the final slide).`,
-        },
-        {
-          role: "user",
-          content: poemPrompt,
-        },
-      ],
-      max_tokens: 800,
+    const response = await client.responses.create({
+      model: "gpt-5",
+      instructions: SYSTEM_INSTRUCTIONS,
+      input: poemPrompt,
+      max_output_tokens: 5000,
     });
 
-    // Extract poem content from the standard Chat Completions API response
-    const poemContent = response.choices[0]?.message?.content;
-
-    console.log("poemContent", poemContent);
+    const poemContent =
+      response.output_text ??
+      response.output
+        ?.find((item) => item.type === "message")
+        ?.content?.find((content) => content.type === "output_text")?.text;
 
     if (!poemContent) {
       throw new Error("OpenAI response missing poem content");
     }
 
-    // Validate paragraph count
     const paragraphs = poemContent
       .split("\n\n")
       .filter((p) => p.trim().length > 0);
@@ -342,6 +341,7 @@ CRITICAL: You MUST write exactly 4 paragraphs, each 4-6 lines long. This is non-
         cities: cities || VIDEO_JOURNEY_CONFIG.cities,
         responseId: response.id,
         tokens: response.usage,
+        status: response.status,
       },
     };
   } catch (error) {
