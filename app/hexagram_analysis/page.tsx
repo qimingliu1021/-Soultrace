@@ -265,13 +265,56 @@ function HexagramAnalysisContent() {
         {/* 头部 */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gray-800 mb-4">
-            Your I Ching Result
+            Your I Ching Life Path
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Based on the ancient wisdom of the I Ching
           </p>
         </div>
+        {/* Live Streaming Analysis (English thinking process) */}
+        <div className="max-w-6xl mx-auto mt-12">
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-gray-800">Live Analysis (Streaming)</h3>
+              <div className="space-x-3">
+                {!isStreaming ? (
+                  <>
+                    <button
+                      onClick={() => startStreaming('gpt-5')}
+                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                    >
+                      Start Stream (gpt-5)
+                    </button>
+                    <button
+                      onClick={() => startStreaming()}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                    >
+                      Start Stream (default model)
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={stopStreaming}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    Stop Stream
+                  </button>
+                )}
+              </div>
+            </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="text-lg font-semibold mb-2 text-gray-800">Thinking Process (English)</h4>
+                <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded border border-gray-200 h-64 overflow-auto">{thinkingLog || 'Click Start Stream to begin...'}</pre>
+              </div>
+              <div>
+                <h4 className="text-lg font-semibold mb-2 text-gray-800">AI Analysis (Streaming)</h4>
+                <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded border border-gray-200 h-64 overflow-auto">{analysisStream}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
         {/* 本卦信息 */}
         <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg mb-8">
           {/* City-inspired Cinematic Image */}
@@ -322,20 +365,6 @@ function HexagramAnalysisContent() {
             </div>
           </div>
 
-          {/* Image */}
-          <div className="mb-8 p-6 bg-gradient-to-r from-green-50 to-teal-50 rounded-lg">
-            <h4 className="text-xl font-semibold mb-4 text-gray-800">Image</h4>
-            <p className="text-lg text-gray-700 leading-relaxed italic mb-4">
-              &ldquo;{result.originalHexagram.wilhelm_image.text}&rdquo;
-            </p>
-            <div className="p-4 bg-white rounded-lg">
-              <h5 className="font-medium text-gray-700 mb-2">Interpretation:</h5>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                {result.originalHexagram.wilhelm_image.comments}
-              </p>
-            </div>
-          </div>
-
           {/* Lines (六爻) */}
           <div className="mb-8">
             <h4 className="text-xl font-semibold mb-6 text-gray-800 text-center">The Six Lines (六爻)</h4>
@@ -355,9 +384,6 @@ function HexagramAnalysisContent() {
                   <p className="text-sm text-gray-700 leading-relaxed mb-2 italic">
                     "{line.text}"
                   </p>
-                  <div className="text-xs text-gray-600 leading-relaxed">
-                    {line.comments}
-                  </div>
                 </div>
                 );
               })}
@@ -473,6 +499,12 @@ function HexagramAnalysisContent() {
               </div>
             </div>
           </div>
+          
+
+        {/* AI Analysis */}
+        {result.analysis && (
+          <AnalysisDisplay analysis={result.analysis} />
+        )}
 
           {/* Redo Button */}
           <div className="text-center">
@@ -484,56 +516,6 @@ function HexagramAnalysisContent() {
             </button>
           </div>
         </div>
-
-        {/* Live Streaming Analysis (English thinking process) */}
-        <div className="max-w-6xl mx-auto mt-12">
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-2xl font-bold text-gray-800">Live Analysis (Streaming)</h3>
-              <div className="space-x-3">
-                {!isStreaming ? (
-                  <>
-                    <button
-                      onClick={() => startStreaming('gpt-5')}
-                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                    >
-                      Start Stream (gpt-5)
-                    </button>
-                    <button
-                      onClick={() => startStreaming()}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-                    >
-                      Start Stream (default model)
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={stopStreaming}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                  >
-                    Stop Stream
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="text-lg font-semibold mb-2 text-gray-800">Thinking Process (English)</h4>
-                <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded border border-gray-200 h-64 overflow-auto">{thinkingLog || 'Click Start Stream to begin...'}</pre>
-              </div>
-              <div>
-                <h4 className="text-lg font-semibold mb-2 text-gray-800">AI Analysis (Streaming)</h4>
-                <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded border border-gray-200 h-64 overflow-auto">{analysisStream}</pre>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* AI Analysis */}
-        {result.analysis && (
-          <AnalysisDisplay analysis={result.analysis} />
-        )}
 
         {/* 底部信息 */}
         <footer className="text-center mt-16 text-gray-500">
