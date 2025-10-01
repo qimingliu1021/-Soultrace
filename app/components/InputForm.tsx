@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Button } from './Button';
+import { useState } from "react";
+import { Button } from "./Button";
 
 interface InputFormProps {
   onSubmit: (data: {
@@ -16,31 +16,26 @@ interface InputFormProps {
 
 export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
   const [formData, setFormData] = useState({
-    city: '',
-    previousCityInput: '',
+    city: "",
+    previousCityInput: "",
     previousCities: [] as string[],
-    experience: '',
-    difficulty: '',
-    number: ''
+    experience: "",
+    difficulty: "",
+    number: "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.city && formData.experience && formData.difficulty && formData.number) {
-      onSubmit({
-        city: formData.city,
-        previousCities: formData.previousCities,
-        experience: formData.experience,
-        difficulty: formData.difficulty,
-        number: parseInt(formData.number)
-      });
-    }
+    // Navigate directly to hexagram_analysis page
+    window.location.href = "/hexagram_analysis";
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
@@ -48,20 +43,20 @@ export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
     const v = formData.previousCityInput.trim();
     if (!v) return;
     if (formData.previousCities.includes(v)) {
-      setFormData({ ...formData, previousCityInput: '' });
+      setFormData({ ...formData, previousCityInput: "" });
       return;
     }
     setFormData({
       ...formData,
       previousCities: [...formData.previousCities, v],
-      previousCityInput: ''
+      previousCityInput: "",
     });
   };
 
   const removePreviousCity = (city: string) => {
     setFormData({
       ...formData,
-      previousCities: formData.previousCities.filter(c => c !== city)
+      previousCities: formData.previousCities.filter((c) => c !== city),
     });
   };
 
@@ -70,10 +65,13 @@ export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
       <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">
         I Ching Divination - Enter Your Information
       </h2>
-      
+
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="city"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Your City
           </label>
           <input
@@ -90,7 +88,9 @@ export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
 
         {/* Previous Cities */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Previous Cities</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Previous Cities
+          </label>
           <div className="flex gap-2">
             <input
               type="text"
@@ -107,7 +107,10 @@ export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
           {formData.previousCities.length > 0 && (
             <ul className="flex flex-wrap gap-2 mt-3">
               {formData.previousCities.map((c) => (
-                <li key={c} className="flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-1 rounded-full">
+                <li
+                  key={c}
+                  className="flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-1 rounded-full"
+                >
                   <span>{c}</span>
                   <button
                     type="button"
@@ -124,7 +127,10 @@ export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
         </div>
 
         <div>
-          <label htmlFor="experience" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="experience"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Your Personal Experience
           </label>
           <textarea
@@ -140,7 +146,10 @@ export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
         </div>
 
         <div>
-          <label htmlFor="difficulty" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="difficulty"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Current Difficulties
           </label>
           <textarea
@@ -156,7 +165,10 @@ export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
         </div>
 
         <div>
-          <label htmlFor="number" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="number"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Divination Number (100-1000)
           </label>
           <input
@@ -183,7 +195,7 @@ export function InputForm({ onSubmit, isLoading = false }: InputFormProps) {
               Processing...
             </div>
           ) : (
-            'Start Divination'
+            "Get Started"
           )}
         </Button>
       </form>

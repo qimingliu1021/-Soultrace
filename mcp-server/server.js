@@ -1,6 +1,6 @@
 import express from "express";
 import "dotenv/config";
-import { generateHtmlPainting } from "./paintingAgent.js";
+import { generateImagePainting } from "./paintingAgent.js";
 import { generateVideoJourneyPoem } from "./poemAgent.js";
 console.log("🚀 server.js: paintingAgent and poemAgent imported successfully");
 
@@ -29,9 +29,9 @@ app.get("/health", (_req, res) => {
 
 const TOOL_DEFINITIONS = [
   {
-    name: "generate_html_painting",
+    name: "generate_image_painting",
     description:
-      "Create an HTML painting from a prompt, color palette, and optional aspect ratio.",
+      "Generate a GPT-5 rendered image from a prompt, color palette, and optional aspect ratio.",
     input_schema: {
       $schema: "https://json-schema.org/draft/2020-12/schema",
       type: "object",
@@ -72,7 +72,10 @@ const TOOL_DEFINITIONS = [
         situation: { type: "string", description: "Context of the journey." },
         intensity: { type: "string", description: "Emotional intensity." },
         mood: { type: "string", description: "Overall mood." },
-        purpose: { type: "string", description: "Intended purpose of the poem." },
+        purpose: {
+          type: "string",
+          description: "Intended purpose of the poem.",
+        },
         tone: { type: "string", description: "Preferred narrative tone." },
         genre: { type: "string", description: "Optional genre guidance." },
         cities: {
@@ -112,9 +115,12 @@ app.post("/mcp", async (req, res) => {
     let result;
     // console.log(`[mcp-server] Calling tool: ${toolName}`);
 
-    if (toolName === "generate_html_painting") {
-      console.log("[mcp-server] Calling generateHtmlPainting with args:", args);
-      result = await generateHtmlPainting({
+    if (toolName === "generate_image_painting") {
+      // console.log(
+      //   "[mcp-server] Calling generateImagePainting with args:",
+      //   args
+      // );
+      result = await generateImagePainting({
         prompt: args.prompt,
         palette: args.palette,
         aspectRatio: args.aspectRatio,

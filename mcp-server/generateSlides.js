@@ -1,7 +1,7 @@
 import {promises as fs} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {generateHtmlPainting} from './paintingAgent.js';
+import {generateImagePainting} from './paintingAgent.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,72 +62,6 @@ const slidesConfig = [
   },
 ];
 
-function buildSvg({palette, index}) {
-  const [primary, secondary, accent] = palette;
-  const gradientId = `sky-gradient-${index}`;
-  const hazeId = `haze-${index}`;
-  const width = 1280;
-  const height = 720;
-  const buildingLayers = 6;
-
-  const skyline = Array.from({length: buildingLayers}).map((_, layer) => {
-    const depth = layer + 1;
-    const baseHeight = height * (0.34 + depth * 0.08);
-    const randomness = 90 - depth * 8;
-    const opacity = 0.32 + depth * 0.08;
-    const color = layer % 2 === 0 ? secondary : accent;
-
-    const buildingCount = 8 + layer * 3;
-    const widthStep = width / buildingCount;
-
-    let path = `M 0 ${height}`;
-    for (let i = 0; i <= buildingCount; i += 1) {
-      const x = i * widthStep;
-      const variation = Math.sin((i + layer * 2) * 0.9) * randomness;
-      const y = Math.max(0, baseHeight - variation);
-      const roof = y - (20 + depth * 6);
-      path += ` L ${x} ${y} L ${x + widthStep * 0.5} ${roof} L ${x + widthStep} ${y}`;
-    }
-    path += ` L ${width} ${height}`;
-
-    return `<path d="${path}" fill="${color}" fill-opacity="${Math.min(opacity, 0.95)}" />`;
-  });
-
-  return `<!DOCTYPE svg>
-<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="${gradientId}" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="${primary}" />
-      <stop offset="60%" stop-color="${secondary}" />
-      <stop offset="100%" stop-color="${accent}" />
-    </linearGradient>
-    <filter id="${hazeId}">
-      <feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="4" />
-      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.3 0" />
-      <feComponentTransfer>
-        <feFuncA type="linear" slope="0.4" />
-      </feComponentTransfer>
-      <feGaussianBlur stdDeviation="6" />
-    </filter>
-  </defs>
-  <rect width="${width}" height="${height}" fill="${primary}" />
-  <rect width="${width}" height="${height}" fill="url(#${gradientId})" opacity="0.88" />
-  <rect width="${width}" height="${height}" filter="url(#${hazeId})" opacity="0.4" />
-  <g opacity="0.16" stroke="rgba(255,255,255,0.18)" stroke-width="1.2" fill="none">
-    <path d="M0 ${height * 0.66} Q ${width * 0.28} ${height * 0.52}, ${width * 0.55} ${height * 0.68} T ${width} ${height * 0.54}" />
-    <path d="M0 ${height * 0.82} Q ${width * 0.22} ${height * 0.74}, ${width * 0.5} ${height * 0.86} T ${width} ${height * 0.78}" />
-  </g>
-  <g>
-    ${skyline.join('\n    ')}
-  </g>
-  <g opacity="0.22" fill="rgba(255,255,255,0.32)">
-    <circle cx="${width * 0.18}" cy="${height * 0.24}" r="140" />
-    <circle cx="${width * 0.74}" cy="${height * 0.18}" r="110" />
-    <circle cx="${width * 0.86}" cy="${height * 0.36}" r="180" />
-  </g>
-</svg>`;
-}
-
 async function main() {
   await fs.mkdir(publicDir, {recursive: true});
 
@@ -135,21 +69,18 @@ async function main() {
 
   for (let index = 0; index < slidesConfig.length; index += 1) {
     const config = slidesConfig[index];
-    const result = await generateHtmlPainting({
+    const result = await generateImagePainting({
       prompt: config.prompt,
       palette: config.palette,
       aspectRatio: config.aspectRatio,
     });
 
-    const svgContent = buildSvg({
-      title: config.title,
-      description: config.description,
-      palette: config.palette,
-      index,
-    });
-
-    const filename = `slide-${index + 1}.svg`;
-    await fs.writeFile(path.join(publicDir, filename), svgContent, 'utf8');
+    const extension = result.mimeType?.includes('svg') ? 'svg' : 'png';
+    const filename = `slide-${index + 1}.${extension}`;
+    if (result.imageB64) {
+      const buffer = Buffer.from(result.imageB64, 'base64');
+      await fs.writeFile(path.join(publicDir, filename), buffer);
+    }
 
     slides.push({
       id: config.id,
@@ -160,7 +91,7 @@ async function main() {
       city: config.city,
       country: config.country,
       aspectRatio: config.aspectRatio,
-      image: `/paintings/${filename}`,
+      image: result.imageB64 ? `/paintings/${filename}` : result.imageUrl ?? null,
       meta: {
         model: result.meta?.model,
         usedOpenAI: Boolean(result.meta?.usedOpenAI),

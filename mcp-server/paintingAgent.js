@@ -1,239 +1,188 @@
 import "dotenv/config";
 import OpenAI from "openai";
-import fs from "fs/promises";
-import path from "path";
 
-const systemPrompt = `You are Soultrace's HTML painting agent. Based on a given prompt, generate a complete standalone HTML document that visually renders an imaginative and beautiful scene using HTML and CSS. The resulting HTML/CSS should create a striking and attractive picture.
-Guidelines:
-- Respond with valid HTML (including <!DOCTYPE html>, <html>, <head>, <body>).
-- Inline all CSS within a <style> tag in <head>.
-- Use semantic HTML elements when sensible.
-- Avoid external resources unless absolutely necessary; prefer gradients, SVG, or free image URLs supplied in the prompt arguments.
-- Keep total HTML under ~10KB.
-- Never include <script> tags.
-- Celebrate vibrant gradients, subtle animation via CSS keyframes if helpful, and accessible contrast.`;
+// Use GPT-4 as the primary model for image generation
+const DEFAULT_IMAGE_MODEL = "gpt-4";
 
-console.log("systemPrompt at paintingAgent.js", systemPrompt);
+const FALLBACK_MODELS = Array.from(
+  new Set(["gpt-4", "dall-e-3", "dall-e-2"].filter(Boolean))
+);
 
-const defaultModel = "gpt-5";
+const ASPECT_RATIO_TO_SIZE = new Map([
+  ["16:9", "1792x1024"],
+  ["9:16", "1024x1792"],
+  ["1:1", "1024x1024"],
+  ["4:3", "1536x1152"],
+  ["3:4", "1152x1536"],
+]);
 
-// Initialize OpenAI client
+const DEFAULT_SIZE = "1792x1024";
+
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Add back the fallbackHtml function that was deleted
-const fallbackHtml = ({
-  prompt,
-  palette = [],
-  aspectRatio = "16:9",
-}) => `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Soultrace Painted Scene</title>
-  </head>
-  <body>
-    <h1>Error Getting HTML</h1>
-    <p>Prompt: ${prompt}</p>
-    <p>Palette: ${palette.join(", ") || "N/A"}</p>
-    <p>Aspect Ratio: ${aspectRatio}</p>
-  </body>
-</html>`;
+function resolveDimensions(aspectRatio) {
+  const size = resolveSize(aspectRatio);
+  const [widthStr, heightStr] = size.split("x");
+  const width = Number(widthStr) || 1792;
+  const height = Number(heightStr) || 1024;
+  return { width, height };
+}
 
-// Create output directory for HTML files
-const OUTPUT_DIR = path.join(process.cwd(), "generated-paintings");
-
-console.log("OUTPUT_DIR", OUTPUT_DIR);
-
-// Ensure output directory exists
-async function ensureOutputDir() {
-  try {
-    await fs.access(OUTPUT_DIR);
-  } catch {
-    await fs.mkdir(OUTPUT_DIR, { recursive: true });
-    console.log(`Created directory: ${OUTPUT_DIR}`);
+function pickPalette(palette) {
+  if (!Array.isArray(palette) || palette.length === 0) {
+    return ["#0f172a", "#1e293b", "#334155"];
   }
+  if (palette.length >= 3) return palette.slice(0, 3);
+  if (palette.length === 2) return [...palette, palette[0]];
+  return [palette[0], palette[0], palette[0]];
 }
 
-// Helper function to create a safe filename from prompt
-function createSafeFilename(prompt, timestamp = Date.now()) {
-  const cleanPrompt = prompt
-    .replace(/[^a-zA-Z0-9\s]/g, "") // Remove special characters
-    .replace(/\s+/g, "-") // Replace spaces with hyphens
-    .toLowerCase()
-    .substring(0, 50); // Limit length
+function buildFallbackImage({ prompt, palette, aspectRatio }) {
+  const { width, height } = resolveDimensions(aspectRatio);
+  const [primary, secondary, accent] = pickPalette(palette);
+  const promptSnippet = (prompt ?? "").slice(0, 120).replace(/\s+/g, " ");
 
-  return `painting-${cleanPrompt}-${timestamp}.html`;
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="${primary}" />
+      <stop offset="70%" stop-color="${secondary}" />
+      <stop offset="100%" stop-color="${accent}" />
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="${accent}" stop-opacity="0.45" />
+      <stop offset="100%" stop-color="${accent}" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="${width}" height="${height}" fill="url(#bg)" />
+  <rect width="${width}" height="${height}" fill="url(#glow)" />
+  <g fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="2">
+    <path d="M0 ${height * 0.7} Q ${width * 0.25} ${height * 0.6}, ${width * 0.45} ${height * 0.72} T ${width} ${height * 0.62}" />
+    <path d="M0 ${height * 0.84} Q ${width * 0.35} ${height * 0.78}, ${width * 0.58} ${height * 0.88} T ${width} ${height * 0.82}" />
+  </g>
+  <text x="5%" y="90%" fill="rgba(255,255,255,0.35)" font-family="'Inter', sans-serif" font-size="${Math.max(
+    Math.round(height * 0.035),
+    20
+  )}" letter-spacing="2" text-transform="uppercase">
+    Soultrace Fallback • ${promptSnippet}
+  </text>
+</svg>`;
+
+  return Buffer.from(svg).toString("base64");
 }
 
-// Helper function to save HTML to file
-async function saveHtmlToFile(htmlContent, prompt, metadata = {}) {
-  try {
-    await ensureOutputDir();
+function buildImagePrompt({ prompt, palette, aspectRatio }) {
+  const paletteHint =
+    Array.isArray(palette) && palette.length > 0
+      ? `\nColor palette emphasis: ${palette.join(", ")}.`
+      : "";
 
-    const filename = createSafeFilename(prompt);
-    const filepath = path.join(OUTPUT_DIR, filename);
+  const aspectHint = aspectRatio
+    ? `\nAspect ratio target: ${aspectRatio}.`
+    : "";
 
-    // Add metadata as HTML comment at the top
-    const metadataComment = `<!--
-Generated by Soultrace Painting Agent
-Timestamp: ${new Date().toISOString()}
-Prompt: ${prompt}
-Model: ${metadata.model || "unknown"}
-Response ID: ${metadata.responseId || "unknown"}
-Tokens Used: ${JSON.stringify(metadata.tokens || {})}
--->
-`;
+  return `${prompt?.trim() ?? ""}
+Render a richly detailed, cinematic digital painting with painterly lighting, depth, and atmosphere.${paletteHint}${aspectHint}
+Exclude any text or typography.`.trim();
+}
 
-    const finalHtml = metadataComment + htmlContent;
+function resolveSize(aspectRatio) {
+  if (!aspectRatio) return DEFAULT_SIZE;
+  const size = ASPECT_RATIO_TO_SIZE.get(aspectRatio);
+  return size ?? DEFAULT_SIZE;
+}
 
-    await fs.writeFile(filepath, finalHtml, "utf-8");
-    console.log(`[paintingAgent] Saved HTML painting to: ${filepath}`);
+async function tryGenerateWithModel({ model, prompt, size }) {
+  // Use DALL-E models for actual image generation since GPT-4 doesn't generate images directly
+  const imageModel = model === "gpt-4" ? "dall-e-3" : model;
 
-    return filepath;
-  } catch (error) {
-    console.error(`[paintingAgent] Failed to save HTML file:`, error);
-    return null;
+  const response = await client.images.generate({
+    model: imageModel,
+    prompt,
+    size,
+    n: 1,
+    quality: "hd",
+    response_format: "b64_json",
+  });
+
+  const first = response?.data?.[0];
+  if (!first || (!first.b64_json && !first.url)) {
+    throw new Error(`Model ${imageModel} returned no image data`);
   }
+
+  return {
+    imageB64: first.b64_json ?? null,
+    imageUrl: first.url ?? null,
+    model: imageModel,
+    mimeType: first.mimeType ?? "image/png",
+    response,
+  };
 }
 
-console.log("paintingAgent.js loaded successfully");
-
-export async function generateHtmlPainting({ prompt, palette, aspectRatio }) {
-  const effectivePrompt = prompt?.trim().length ? prompt : "";
-
+export async function generateImagePainting({ prompt, palette, aspectRatio }) {
   if (!process.env.OPENAI_API_KEY) {
-    console.log("[paintingAgent] No OpenAI API key, using fallback");
-
-    const fallbackHtmlContent = fallbackHtml({
-      prompt: effectivePrompt,
-      palette,
-      aspectRatio,
-    });
-
-    console.log(
-      "[paintingAgent] Generated fallback HTML, length:",
-      fallbackHtmlContent.length
-    );
-
-    // Save fallback HTML too
-    await saveHtmlToFile(fallbackHtmlContent, effectivePrompt, {
-      model: "fallback",
-    });
-
+    const fallback = buildFallbackImage({ prompt, palette, aspectRatio });
     return {
-      html: fallbackHtmlContent,
+      imageB64: fallback,
+      imageUrl: null,
+      prompt: prompt ?? "",
+      mimeType: "image/svg+xml",
       meta: {
-        model: "fallback",
         usedOpenAI: false,
+        error: "Missing OPENAI_API_KEY",
+        fallback: true,
+        size: resolveSize(aspectRatio),
       },
     };
   }
 
-  // console.log("[paintingAgent] Making OpenAI API call...");
+  const finalPrompt = buildImagePrompt({ prompt, palette, aspectRatio });
+  const size = resolveSize(aspectRatio);
 
-  try {
-    // Use the new OpenAI Responses API
-    const response = await client.responses.create({
-      model: defaultModel,
-      instructions: systemPrompt,
-      input: `Prompt: ${effectivePrompt}\nSuggested palette: ${
-        (palette ?? []).join(", ") || "N/A"
-      }\nDesired aspect ratio: ${aspectRatio ?? "16:9"}\nReturn HTML now.`,
-      max_output_tokens: 10000, // Increased from 3600
-    });
+  const attemptErrors = [];
 
-    // Check if response is incomplete due to token limit
-    if (
-      response.status === "incomplete" &&
-      response.incomplete_details?.reason === "max_output_tokens"
-    ) {
-      console.warn("[paintingAgent] Response was truncated due to token limit");
-    }
-
-    // Try to extract HTML content from the response
-    let htmlContent;
-
-    // First try the output_text field directly (as seen in terminal output)
-    if (response.output_text) {
-      htmlContent = response.output_text;
-    } else {
-      // Fallback to the nested structure
-      const messageOutput = response.output.find(
-        (item) => item.type === "message"
+  for (const model of FALLBACK_MODELS) {
+    try {
+      const result = await tryGenerateWithModel({
+        model,
+        prompt: finalPrompt,
+        size,
+      });
+      return {
+        imageB64: result.imageB64,
+        imageUrl: result.imageUrl,
+        prompt: finalPrompt,
+        mimeType: result.mimeType,
+        meta: {
+          usedOpenAI: true,
+          model: result.model,
+          size,
+        },
+      };
+    } catch (error) {
+      attemptErrors.push(
+        `${model}: ${error instanceof Error ? error.message : String(error)}`
       );
-      const textContent = messageOutput?.content?.find(
-        (content) => content.type === "output_text"
-      );
-      htmlContent = textContent?.text;
     }
-
-    if (!htmlContent) {
-      throw new Error("OpenAI response missing HTML content");
-    }
-
-    // If the HTML is incomplete, try to close unclosed tags
-    if (response.status === "incomplete") {
-      htmlContent = ensureValidHtml(htmlContent);
-    }
-
-    const metadata = {
-      model: response.model || defaultModel,
-      responseId: response.id,
-      tokens: response.usage,
-      incomplete: response.status === "incomplete",
-    };
-
-    return {
-      html: htmlContent,
-      meta: {
-        ...metadata,
-        usedOpenAI: true,
-      },
-    };
-  } catch (error) {
-    console.error("[paintingAgent] Error occurred:", error);
-
-    const fallbackHtmlContent = fallbackHtml({
-      prompt: `${effectivePrompt} (fallback rendering)`,
-      palette,
-      aspectRatio,
-    });
-
-    return {
-      html: fallbackHtmlContent,
-      meta: {
-        model: "fallback",
-        usedOpenAI: false,
-        error: String(error),
-      },
-    };
   }
+
+  const fallback = buildFallbackImage({ prompt: finalPrompt, palette, aspectRatio });
+  return {
+    imageB64: fallback,
+    imageUrl: null,
+    prompt: finalPrompt,
+    mimeType: "image/svg+xml",
+    meta: {
+      usedOpenAI: false,
+      model: DEFAULT_IMAGE_MODEL,
+      error: `All image models failed. Attempts: ${attemptErrors.join("; ")}`,
+      fallback: true,
+      size,
+    },
+  };
 }
 
-// Helper function to ensure HTML is valid even if truncated
-function ensureValidHtml(html) {
-  // Basic HTML completion for truncated responses
-  if (!html.includes("</html>")) {
-    // Count unclosed tags and try to close them
-    const openTags = html.match(/<(?!\/)[^>]+>/g) || [];
-    const closeTags = html.match(/<\/[^>]+>/g) || [];
-
-    // Simple approach: if missing </html>, try to close common tags
-    if (!html.includes("</style>") && html.includes("<style>")) {
-      html += "\n</style>";
-    }
-    if (!html.includes("</head>") && html.includes("<head>")) {
-      html += "\n</head>";
-    }
-    if (!html.includes("</body>") && html.includes("<body>")) {
-      html += "\n</body>";
-    }
-    if (!html.includes("</html>")) {
-      html += "\n</html>";
-    }
-  }
-
-  return html;
-}
+export default generateImagePainting;

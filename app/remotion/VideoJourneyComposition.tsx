@@ -12,12 +12,15 @@ export const SLIDE_DURATION_SECONDS = 6;
 export const SLIDE_DURATION_FRAMES = SLIDE_DURATION_SECONDS * VIDEO_FPS;
 
 export interface PaintingSlide extends PaintingSlideConfig {
-  html: string;
+  imageSrc: string | null;
+  prompt?: string;
   meta?: {
     model?: string;
     usedOpenAI?: boolean;
     tokens?: unknown;
     error?: string;
+    size?: string;
+    fallback?: boolean;
   };
 }
 
@@ -37,58 +40,6 @@ export interface VideoJourneyCompositionProps {
   poem?: PoemData;
 }
 
-const baseBackground =
-  "radial-gradient(circle at top left, rgba(24, 69, 139, 0.28), transparent 58%)," +
-  "radial-gradient(circle at bottom right, rgba(250, 112, 154, 0.22), transparent 52%)," +
-  "linear-gradient(140deg, #050816 0%, #0b1533 48%, #04040d 100%)";
-
-const FALLBACK_HTML_CONTENT =
-  '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#fff;font-family:Inter,sans-serif">No content</div>';
-
-interface PreparedPaintingDocument {
-  head: string;
-  bodyContent: string;
-  bodyAttributes: string;
-}
-
-const stripScripts = (markup: string) =>
-  markup.replace(/<script[\s\S]*?<\/script>/gi, "");
-
-const preparePaintingDocument = (html: string): PreparedPaintingDocument => {
-  if (!html.trim()) {
-    return {
-      head: "",
-      bodyContent: FALLBACK_HTML_CONTENT,
-      bodyAttributes: "",
-    };
-  }
-
-  const withoutDocType = html.replace(/<!DOCTYPE[^>]*>/gi, "");
-  const withoutHtml = withoutDocType.replace(/<\/?html[^>]*>/gi, "");
-
-  const headMatch = withoutHtml.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
-  const head = headMatch ? stripScripts(headMatch[1]) : "";
-
-  const bodyMatch = withoutHtml.match(/<body([^>]*)>([\s\S]*?)<\/body>/i);
-  const bodyAttributes = bodyMatch?.[1]?.trim() ?? "";
-
-  let bodyContent = bodyMatch
-    ? bodyMatch[2]
-    : withoutHtml.replace(/<head[^>]*>[\s\S]*?<\/head>/i, "");
-
-  bodyContent = stripScripts(bodyContent).trim();
-
-  if (!bodyContent) {
-    bodyContent = FALLBACK_HTML_CONTENT;
-  }
-
-  return {
-    head,
-    bodyContent,
-    bodyAttributes,
-  };
-};
-
 export const VideoJourneyComposition: React.FC<
   VideoJourneyCompositionProps
 > = ({ slides, poem }) => {
@@ -99,14 +50,15 @@ export const VideoJourneyComposition: React.FC<
       : [
           {
             id: "placeholder",
-            title: "Awaiting Paintings",
-            description: "Paintings will appear once the agent responds.",
-            prompt: "Placeholder",
+            prompt: "Awaiting generated artwork",
             palette: ["#64748B", "#94A3B8", "#CBD5F5"],
             city: "Loading",
             country: "…",
             aspectRatio: "16:9",
-            html: '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#f9fbff;background:linear-gradient(120deg,#1f2937,#0f172a);font-family:Inter,sans-serif">Loading…</div>',
+            imageSrc: null,
+            meta: {
+              usedOpenAI: false,
+            },
           },
         ];
 
@@ -117,7 +69,7 @@ export const VideoJourneyComposition: React.FC<
     }
 
     const totalFrames = safeSlides.length * SLIDE_DURATION_FRAMES;
-    const paragraphDuration = totalFrames / 4; // 4 paragraphs over total duration
+    const paragraphDuration = totalFrames / poem.paragraphs.length;
 
     const paragraphIndex = Math.floor(frame / paragraphDuration);
 
@@ -137,9 +89,7 @@ export const VideoJourneyComposition: React.FC<
   return (
     <AbsoluteFill
       style={{
-        fontFamily: 'var(--font-sans, "Inter", "SF Pro Display", system-ui)',
-        color: "#f8fbff",
-        background: baseBackground,
+        background: "#000000",
         overflow: "hidden",
       }}
     >
@@ -156,37 +106,49 @@ export const VideoJourneyComposition: React.FC<
           }
         );
 
-        const zoom = interpolate(frame, [start, end], [1.02, 1.06], {
+        const zoom = interpolate(frame, [start, end], [1.0, 1.05], {
           extrapolateLeft: "clamp",
           extrapolateRight: "clamp",
         });
-
-        const preparedDoc = preparePaintingDocument(slide.html);
-
-        const bodyAttributes = preparedDoc.bodyAttributes
-          ? ` ${preparedDoc.bodyAttributes}`
-          : "";
 
         return (
           <AbsoluteFill
             key={slide.id}
             style={{
               opacity: slideOpacity,
-              pointerEvents: "none",
             }}
           >
-            <iframe
-              srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8" /><style>html,body{margin:0;height:100%;width:100%;}</style>${preparedDoc.head}</head><body${bodyAttributes}>${preparedDoc.bodyContent}</body></html>`}
-              style={{
-                width: "100%",
-                height: "100%",
-                border: "none",
-                display: "block",
-                transform: `scale(${zoom})`,
-                transformOrigin: "center",
-                background: "#020617",
-              }}
-            />
+            {slide.imageSrc ? (
+              <img
+                src={slide.imageSrc}
+                alt={`Generated artwork for ${slide.city}`}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                  transform: `scale(${zoom})`,
+                  transformOrigin: "center",
+                  background: "#000000",
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "#000000",
+                  color: "#ffffff",
+                  fontSize: 24,
+                  fontFamily: "Arial, sans-serif",
+                }}
+              >
+                Generating Image...
+              </div>
+            )}
           </AbsoluteFill>
         );
       })}
@@ -198,7 +160,7 @@ export const VideoJourneyComposition: React.FC<
             pointerEvents: "none",
             display: "flex",
             flexDirection: "column",
-            justifyContent: "flex-start",
+            justifyContent: "center",
             alignItems: "center",
             padding: "60px 80px",
             zIndex: 10,
@@ -206,11 +168,13 @@ export const VideoJourneyComposition: React.FC<
         >
           <div
             style={{
-              background: "transparent",
+              background: "rgba(0, 0, 0, 0.7)",
+              backdropFilter: "blur(10px)",
               padding: "32px 48px",
               borderRadius: "24px",
               maxWidth: "800px",
               textAlign: "center",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
               opacity: interpolate(
                 currentParagraph.progress,
                 [0, 0.1, 0.9, 1],
@@ -233,13 +197,14 @@ export const VideoJourneyComposition: React.FC<
           >
             <div
               style={{
-                fontSize: "clamp(18px, 2.5vw, 24px)",
+                fontSize: "clamp(18px, 2.5vw, 28px)",
                 lineHeight: 1.6,
-                color: "#f8fbff",
+                color: "#ffffff",
                 fontWeight: 400,
                 letterSpacing: "0.02em",
                 whiteSpace: "pre-line",
-                textShadow: "0 6px 30px rgba(4, 6, 18, 0.85)",
+                textShadow: "0 2px 8px rgba(0, 0, 0, 0.8)",
+                fontFamily: "Georgia, serif",
               }}
             >
               {currentParagraph.text}
@@ -254,27 +219,30 @@ export const VideoJourneyComposition: React.FC<
                 gap: "8px",
               }}
             >
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={i}
-                  style={{
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "50%",
-                    background:
-                      i === currentParagraph.index
-                        ? "#9be7ff"
-                        : "rgba(155, 231, 255, 0.3)",
-                    transition: "all 0.3s ease",
-                  }}
-                />
-              ))}
+              {Array.from({ length: poem?.paragraphs?.length || 4 }).map(
+                (_, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      background:
+                        i === currentParagraph.index
+                          ? "#ffffff"
+                          : "rgba(255, 255, 255, 0.3)",
+                      transition: "all 0.3s ease",
+                    }}
+                  />
+                )
+              )}
             </div>
           </div>
         </AbsoluteFill>
       )}
 
-      <Audio src={staticFile("/media/dummy-theme.wav")} volume={0.4} loop />
+      {/* Background Music */}
+      <Audio src={staticFile("/tianxingjiuge.mp3")} volume={0.4} loop />
     </AbsoluteFill>
   );
 };

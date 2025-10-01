@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         type: "call_tool",
-        tool_name: "generate_html_painting",
+        tool_name: "generate_image_painting",
         arguments: {
           prompt: body.prompt,
           palette: body.palette,
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     if (
       data?.type !== "tool_response" ||
-      data?.tool_name !== "generate_html_painting"
+      data?.tool_name !== "generate_image_painting"
     ) {
       return NextResponse.json(
         { error: "Unexpected response from MCP server" },

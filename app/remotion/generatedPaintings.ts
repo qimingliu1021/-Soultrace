@@ -24,21 +24,6 @@ export const paintingSlides: readonly PaintingSlideConfig[] = [
     aspectRatio: "16:9",
   },
   {
-    id: "newyork-dusk-grid",
-    prompt: `**Foreground:** An old wooden bench with a book and a paper bread bag. A hand (softly blurred) offers a piece of bread towards the viewer.
-              **Mid-ground:** The calm water of the Lincoln Canal perfectly reflects the sky and houses. A graceful white swan, with wings slightly spread, accepts the bread. Ripples circle outwards.
-              **Background:** Lincoln Cathedral stands serenely atop the hill, bathed in soft backlight. A comic-like traffic signal and bridge are visible.
-
-              **Color Palette:** Low saturation, high contrast. Dominant muted blues, greens, and stone grays, contrasted with a high-saturation, warm golden light emanating from behind the Cathedral.
-              **Textures:** Gentle hand-painted strokes, subtle canvas texture. Dust particles float in the light beams.
-
-              **Video Background Potential:** Gentle, expanding ripples on the water; slow floating of dust particles.`,
-    palette: ["#FB923C", "#F97316", "#38BDF8"],
-    city: "New York",
-    country: "USA",
-    aspectRatio: "16:9",
-  },
-  {
     id: "lincoln-cathedral-haze",
     prompt: `**Foreground:** An old wooden bench with a book and a paper bread bag. A hand (softly blurred) offers a piece of bread towards the viewer.
               **Mid-ground:** The calm water of the Lincoln Canal perfectly reflects the sky and houses. A graceful white swan, with wings slightly spread, accepts the bread. Ripples circle outwards.
@@ -67,20 +52,18 @@ export const paintingSlides: readonly PaintingSlideConfig[] = [
     aspectRatio: "16:9",
   },
   {
-    id: "chicago-lakefront-aurora",
-    prompt: `
-    Masterpiece, illustration of "Poetic Modernism". A surreal, transformative memory of New York as an artistic awakening. 16:9 widescreen.
+    id: "newyork-dusk-grid",
+    prompt: `Masterpiece, illustration of "Poetic Modernism". A surreal, transformative memory of New York as an artistic awakening. 16:9 widescreen.
 
-    **Foreground:** The torch of the Statue of Liberty extends into the frame. Its flame is composed of high-saturation, flowing paints (cobalt blue, cadmium red, viridian green) that drip down.
-    **Mid-ground:** The ground is a grid of sketched New York streets. Above, the rotunda of the Guggenheim Museum and other gallery spaces float and reorganize like a dream architecture. Frames contain blurred images of "reality" being covered by abstract colors.
-    **Background:** The NYC skyline is blurred in a dreamy, post-dusk palette of purple and gold.
+**Foreground:** The torch of the Statue of Liberty extends into the frame. Its flame is composed of high-saturation, flowing paints (cobalt blue, cadmium red, viridian green) that drip down.
+**Mid-ground:** The ground is a grid of sketched New York streets. Above, the rotunda of the Guggenheim Museum and other gallery spaces float and reorganize like a dream architecture. Frames contain blurred images of "reality" being covered by abstract colors.
+**Background:** The NYC skyline is blurred in a dreamy, post-dusk palette of purple and gold.
 
-    **Color Palette:** Low saturation, high contrast. Dominant muted purples, golds, and deep blues. The high-saturation paint from the torch is the vivid focal point.
-    **Textures:** Pronounced canvas texture. Floating sketch papers, brushes, and paint tubes.
+**Color Palette:** Low saturation, high contrast. Dominant muted purples, golds, and deep blues. The high-saturation paint from the torch is the vivid focal point.
+**Textures:** Pronounced canvas texture. Floating sketch papers, brushes, and paint tubes.
 
-    **Video Background Potential:** Slow, viscous flow of the paint torch; subtle hovering motion of the floating art supplies.
-`,
-    palette: ["#1E3A8A", "#3B82F6", "#FBBF24"],
+**Video Background Potential:** Slow, viscous flow of the paint torch; subtle hovering motion of the floating art supplies.`,
+    palette: ["#FB923C", "#F97316", "#38BDF8"],
     city: "New York",
     country: "USA",
     aspectRatio: "16:9",
